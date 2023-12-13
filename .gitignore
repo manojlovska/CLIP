@@ -8,3 +8,6 @@ __pycache__/
 thumbs.db
 .DS_Store
 .idea
+
+# User directories and files
+/data/CelebA*
