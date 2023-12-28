@@ -11,3 +11,6 @@ thumbs.db
 
 # User directories and files
 /data/CelebA*
+*.csv
+wandb/*
+
