@@ -36,7 +36,7 @@ class CelebADataset():
         self.eval_partition_path = eval_partition_path
     
         # Images
-        self.images_list = self.read_eval_partition(self.eval_partition_path)[:100]
+        self.images_list = self.read_eval_partition(self.eval_partition_path)
 
         # All captions
         all_captions = pd.read_csv(os.path.join(captions_path, "captions_all_attributes.csv"), sep="\t")
@@ -72,4 +72,4 @@ class CelebADataset():
         # Preprocess image using CLIP's preprocessing function
         image = Image.open(os.path.join(self.images_path, self.images_list[idx]))
         caption = self.tokenized_captions[idx]
-        return self.images_list[idx], self.preprocess(image), caption
+        return self.images_list[idx], self.preprocess(image), self.captions[idx], caption
