@@ -34,7 +34,7 @@ for image in tqdm(img_filenames_all):
     else:
         gender = "woman"
 
-    template = "A photo of a {}".format(gender) + " with the following attributes: " + ", ".join("{}".format(attribute) for attribute in list(np.array(attributes)[np.array(values) > 0]))
+    template = "A photo of a {}".format(gender) + " with the following attributes: " + ", ".join("{}".format(attribute) for attribute in list(np.array(attributes)[np.array(values) > 0]) if attribute != "Male")
     templates.append(template)
     image_names.append(image_name)
 
@@ -45,7 +45,7 @@ captions_df = pd.DataFrame(
     })
 
 # Save the captons
-captions_df.to_csv("captions_all_attributes.csv", sep="\t")
+captions_df.to_csv("captions_all_attributes_no_male_2.csv", sep="\t", index=False, header=None)
 
 
 

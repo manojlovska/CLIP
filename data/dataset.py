@@ -39,7 +39,7 @@ class CelebADataset():
         self.images_list = self.read_eval_partition(self.eval_partition_path)
 
         # All captions
-        all_captions = pd.read_csv(os.path.join(captions_path, "captions_all_attributes.csv"), sep="\t")
+        all_captions = pd.read_csv(captions_path, sep="\t")
         captions = all_captions[all_captions['image_name'].isin(self.images_list)]
         
         # Captions for the particular split
