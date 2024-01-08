@@ -10,7 +10,7 @@ class Exp:
         self.max_epoch = 100
         self.weight_decay = 0
         self.vision_encoder = "ViT-B/32"
-        self.basic_lr = 0.0001
+        self.basic_lr = 0.00001
         # self.max_lr = 0.0001
         self.betas = (0.9, 0.999)
         self.eps = 1e-8
@@ -23,7 +23,7 @@ class Exp:
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
         self.device = torch.device('cuda:1')
         self.save_history_ckpt = True
-        self.project_name = "CLIP-fine-tuning-val_loss"
+        self.project_name = "CLIP-fine-tuning-improved-captions"
         # torch.backends.cudnn.enabled = False
 
         self.model = self.get_model(self.vision_encoder)
@@ -33,7 +33,7 @@ class Exp:
         # --------------- dataset path config ----------------- #
         self.output_dir = "/mnt/hdd/volume1/anastasija/CLIP_outputs"
         self.images_path = "/mnt/hdd/volume1/anastasija/CelebA/Img/img_celeba/"
-        self.captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions_all_attributes.csv"
+        self.captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/gender_captions_all_images.txt"
         self.eval_partitions_path = "/mnt/hdd/volume1/anastasija/CelebA/Eval/"
     
     def get_model(self, vision_encoder):
