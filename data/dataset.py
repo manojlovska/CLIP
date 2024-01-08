@@ -40,6 +40,8 @@ class CelebADataset():
 
         # All captions
         all_captions = pd.read_csv(captions_path, sep="\t")
+        all_captions[['image_name','caption']] = all_captions["image_name caption"].str.split(" ", n=1, expand=True)
+        all_captions.drop(columns=all_captions.columns[0], axis=1,  inplace=True)
         captions = all_captions[all_captions['image_name'].isin(self.images_list)]
         
         # Captions for the particular split
