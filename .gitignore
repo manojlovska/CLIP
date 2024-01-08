@@ -13,4 +13,5 @@ thumbs.db
 /data/CelebA*
 *.csv
 wandb/*
+*.txt
 
