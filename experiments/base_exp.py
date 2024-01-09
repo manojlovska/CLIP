@@ -6,8 +6,8 @@ import os
 class Exp:
     def __init__(self):
         # --------------  training config --------------------- #
-        self.batch_size = 64
-        self.max_epoch = 100
+        self.batch_size = 8
+        self.max_epoch = 1
         self.weight_decay = 0
         self.vision_encoder = "ViT-B/32"
         self.basic_lr = 0.00001

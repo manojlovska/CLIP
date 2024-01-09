@@ -8,6 +8,7 @@ from tqdm import tqdm
 import clip
 from statistics import mean
 import torch.nn.functional as F
+import torchvision
 
 
 class Trainer:
@@ -24,9 +25,6 @@ class Trainer:
         self.input_size = exp.input_size
         self.max_mean_num_diagonal_max_values_im_percent = 0
         self.best_val_loss = 1e10
-
-        # metric record
-        self.file_name = os.path.join(exp.output_dir, self.exp.project_name, self.wandb_logger.name)
 
         # setup_logger(
         #     self.file_name,
@@ -93,10 +91,15 @@ class Trainer:
         self.wandb_logger.define_metric("val_step")
         self.wandb_logger.define_metric("val/val_loss", step_metric="val_step")
 
+        # Metric record
+        self.file_name = os.path.join(self.exp.output_dir, self.exp.project_name, self.wandb_logger.name)
+        os.makedirs(self.file_name, exist_ok=True)
+
         # self.wandb_logger.define_metric("metrics_step")
 
         logger.info("Training start...")
         logger.info("\n{}".format(model))
+        logger.info(f"Saving checkpoints into {self.file_name}")
 
     def train_in_epochs(self):
         self.epoch_loss = 0
@@ -112,6 +115,7 @@ class Trainer:
             list_num_diagonal_max_values_texts_percent_train = []
             for batch in pbar:
                 self.wandb_step += 1
+                self.train_step += 1
                 train_iter += 1
                 self.optimizer.zero_grad()
 
@@ -120,8 +124,22 @@ class Trainer:
                 images = images.to(self.device)
                 texts = texts.to(self.device)
 
+                # Debugging
+                logger.info(f"image_names:\n{image_names}")
+                logger.info(f"captions: \n{captions}")
+                logger.info(f"shape of image tensors:\n{images.shape}")
+                logger.info(f"shape of text tensors:\n{texts.shape}")
+                logger.info(f"images:\n{images}")
+                logger.info(f"texts:\n{texts}")
+                save_img_filename = os.path.join(self.file_name, "batch_img_{}.png".format(train_iter))
+                save_text_filename = os.path.join(self.file_name, "batch_text_{}.png".format(train_iter))
+                torchvision.utils.save_image(images, save_img_filename)
+                # torchvision.utils.save_image(texts, save_text_filename)
+
                 # Forward pass
                 logits_per_image, logits_per_text = self.model(images, texts)
+                logger.info(f"logits_per_image:\n{logits_per_image}")
+                logger.info(f"logits_per_text:\n{logits_per_text}")
                 
                 # Compute loss
                 loss_images = self.contrastive_loss(logits_per_image)
@@ -190,18 +208,33 @@ class Trainer:
         list_num_diagonal_max_values_texts_percent = []
 
         with torch.no_grad():
+            v_pbar = tqdm(self.val_dataloader, total=len(self.val_dataloader))
             iter = 0
             model.eval()
-            self.epoch_val_loss = 0
-            for vdata in tqdm(self.val_dataloader):
+            for v_batch in v_pbar:
                 self.wandb_step += 1
+                self.val_step +=1
                 iter = iter+1
 
-                val_im_names, val_images, val_captions, val_texts = vdata
+                val_im_names, val_images, val_captions, val_texts = v_batch
                 val_images = val_images.to(self.device)
                 val_texts = val_texts.to(self.device)
 
+                # Debugging
+                logger.info(f"val image_names:\n{val_im_names}")
+                logger.info(f"val captions: \n{val_captions}")
+                logger.info(f"shape of val image tensors:\n{val_images.shape}")
+                logger.info(f"shape of val text tensors:\n{val_texts.shape}")
+                logger.info(f"val images:\n{val_images}")
+                logger.info(f"val texts:\n{val_texts}")
+                save_img_filename = os.path.join(self.file_name, "batch_val_img_{}.png".format(iter))
+                save_text_filename = os.path.join(self.file_name, "batch_val_text_{}.png".format(iter))
+                torchvision.utils.save_image(val_images, save_img_filename)
+                # torchvision.utils.save_image(val_texts, save_text_filename)
+
                 val_logits_per_image, val_logits_per_text = model(val_images, val_texts)
+                logger.info(f"val_logits_per_image:\n{val_logits_per_image}")
+                logger.info(f"val_logits_per_text:\n{val_logits_per_text}")
 
                 # Compute validation loss
                 val_loss_images = self.contrastive_loss(val_logits_per_image)
@@ -235,7 +268,7 @@ class Trainer:
                 torch.save(save_tensors, os.path.join(filepath, f"diagonal_max_values_lists_epoch_{self.epoch + 1}_iter_{iter}.pt"))
 
             # Epoch val loss is mean of all iterations
-            self.epoch_val_loss = self.epoch_val_loss / iter
+            self.epoch_val_loss = self.epoch_val_loss / len(v_pbar)
             logger.info(f"Epoch {self.epoch+1}/{self.max_epoch}, validation loss: {self.epoch_val_loss}")
 
             # Mean values of all batches in epoch
