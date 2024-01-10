@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import re
+import clip
 
 data_directory = "/mnt/hdd/volume1/anastasija/CelebA/Img/img_celeba/"
 eval_directory = "/mnt/hdd/volume1/anastasija/CelebA/Eval/"
@@ -203,6 +204,18 @@ for image in tqdm(test_images):
 
     captions[image_name] = re.sub(r'\s+', ' ', template.format(*sorted_attributes))
 
+# Extracting the values and converting them to a set to remove duplicates
+unique_values = set(captions.values())
+print(f"Unique_values:\n{unique_values}")
+
+# Counting the number of unique values
+num_unique_values = len(unique_values)
+print(f"Number of unique values: {num_unique_values}")
+
+tokenized_captions = clip.tokenize(captions.values(), truncate=True)
+
+import pdb; pdb.set_trace()
+
 # Save the captions
 output_file = 'coherent_captions_all_images.txt'
 
@@ -210,6 +223,7 @@ output_file = 'coherent_captions_all_images.txt'
 with open(output_file, 'w') as file:
     for image_name, caption in captions.items():
         file.write(f'{image_name} {caption}\n')
+
 
 
     

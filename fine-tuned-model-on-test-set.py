@@ -53,9 +53,9 @@ for image in tqdm(test_images):
         count_women += 1
 
 # Check predictions
-checkpoint = torch.load("/mnt/hdd/volume1/anastasija/CLIP_outputs/CLIP-fine-tuning-improved-captions/hearty-totem-6/best_ckpt.pth")
+# checkpoint = torch.load("/mnt/hdd/volume1/anastasija/CLIP_outputs/CLIP-fine-tuning-improved-captions/hearty-totem-6/best_ckpt.pth")
 
-model.load_state_dict(checkpoint["model"])
+# model.load_state_dict(checkpoint["model"])
 
 captions = ["A photo of a woman.", "A photo of a man."]
 texts = clip.tokenize(captions, truncate=True).to(device)
@@ -93,6 +93,12 @@ print(f"Predicted number of photos of men: {count_pred_men}")
 # Number of photos of men: 7715
 # Predicted number of photos of women: 12245
 # Predicted number of photos of men: 7717
+
+# Outputs zero-shot
+# Number of photos of women: 12247
+# Number of photos of men: 7715
+# Predicted number of photos of women: 12380
+# Predicted number of photos of men: 7582
 
 import pdb; pdb.set_trace()
 

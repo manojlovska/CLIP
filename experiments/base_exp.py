@@ -7,7 +7,7 @@ class Exp:
     def __init__(self):
         # --------------  training config --------------------- #
         self.batch_size = 8
-        self.max_epoch = 1
+        self.max_epoch = 100
         self.weight_decay = 0
         self.vision_encoder = "ViT-B/32"
         self.basic_lr = 0.00001
@@ -33,7 +33,7 @@ class Exp:
         # --------------- dataset path config ----------------- #
         self.output_dir = "/mnt/hdd/volume1/anastasija/CLIP_outputs"
         self.images_path = "/mnt/hdd/volume1/anastasija/CelebA/Img/img_celeba/"
-        self.captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/gender_captions_all_images.txt"
+        self.captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/hair_captions_all_images.txt"
         self.eval_partitions_path = "/mnt/hdd/volume1/anastasija/CelebA/Eval/"
     
     def get_model(self, vision_encoder):

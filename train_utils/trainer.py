@@ -124,22 +124,8 @@ class Trainer:
                 images = images.to(self.device)
                 texts = texts.to(self.device)
 
-                # Debugging
-                logger.info(f"image_names:\n{image_names}")
-                logger.info(f"captions: \n{captions}")
-                logger.info(f"shape of image tensors:\n{images.shape}")
-                logger.info(f"shape of text tensors:\n{texts.shape}")
-                logger.info(f"images:\n{images}")
-                logger.info(f"texts:\n{texts}")
-                save_img_filename = os.path.join(self.file_name, "batch_img_{}.png".format(train_iter))
-                save_text_filename = os.path.join(self.file_name, "batch_text_{}.png".format(train_iter))
-                torchvision.utils.save_image(images, save_img_filename)
-                # torchvision.utils.save_image(texts, save_text_filename)
-
                 # Forward pass
                 logits_per_image, logits_per_text = self.model(images, texts)
-                logger.info(f"logits_per_image:\n{logits_per_image}")
-                logger.info(f"logits_per_text:\n{logits_per_text}")
                 
                 # Compute loss
                 loss_images = self.contrastive_loss(logits_per_image)
@@ -220,21 +206,7 @@ class Trainer:
                 val_images = val_images.to(self.device)
                 val_texts = val_texts.to(self.device)
 
-                # Debugging
-                logger.info(f"val image_names:\n{val_im_names}")
-                logger.info(f"val captions: \n{val_captions}")
-                logger.info(f"shape of val image tensors:\n{val_images.shape}")
-                logger.info(f"shape of val text tensors:\n{val_texts.shape}")
-                logger.info(f"val images:\n{val_images}")
-                logger.info(f"val texts:\n{val_texts}")
-                save_img_filename = os.path.join(self.file_name, "batch_val_img_{}.png".format(iter))
-                save_text_filename = os.path.join(self.file_name, "batch_val_text_{}.png".format(iter))
-                torchvision.utils.save_image(val_images, save_img_filename)
-                # torchvision.utils.save_image(val_texts, save_text_filename)
-
                 val_logits_per_image, val_logits_per_text = model(val_images, val_texts)
-                logger.info(f"val_logits_per_image:\n{val_logits_per_image}")
-                logger.info(f"val_logits_per_text:\n{val_logits_per_text}")
 
                 # Compute validation loss
                 val_loss_images = self.contrastive_loss(val_logits_per_image)
