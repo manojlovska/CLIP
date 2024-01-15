@@ -23,7 +23,7 @@ class Exp:
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
         self.device = torch.device('cuda:1')
         self.save_history_ckpt = True
-        self.project_name = "CLIP-fine-tuning-improved-captions"
+        self.project_name = "CLIP-fine-tuning-latest"
         # torch.backends.cudnn.enabled = False
 
         self.model = self.get_model(self.vision_encoder)
