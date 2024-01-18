@@ -33,7 +33,7 @@ class Exp:
         # --------------- dataset path config ----------------- #
         self.output_dir = "/mnt/hdd/volume1/anastasija/CLIP_outputs"
         self.images_path = "/mnt/hdd/volume1/anastasija/CelebA/Img/img_celeba/"
-        self.captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/captions_19_attr_all_images.txt"
+        self.captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/captions_all_attributes_new.txt"
         self.eval_partitions_path = "/mnt/hdd/volume1/anastasija/CelebA/Eval/"
     
     def get_model(self, vision_encoder):
