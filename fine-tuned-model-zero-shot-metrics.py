@@ -83,9 +83,9 @@ device = "cuda:0"
 images_path = "/mnt/hdd/volume1/anastasija/CelebA/Img/img_celeba/"
 eval_partition_path = "/mnt/hdd/volume1/anastasija/CelebA/Eval/"
 annotations_directory = "/mnt/hdd/volume1/anastasija/CelebA/Anno/"
-captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/hair_captions_all_images.txt"
+captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/captions_all_attributes_new.txt"
 save_dir = "/mnt/hdd/volume1/anastasija/CLIP_outputs/results"
-model_path = "/mnt/hdd/volume1/anastasija/CLIP_outputs/CLIP-fine-tuning-improved-captions/gentle-paper-28/epoch_3_ckpt.pth"
+model_path = "/mnt/hdd/volume1/anastasija/CLIP_outputs/CLIP-fine-tuning-latest/neat-gorge-6/epoch_2_ckpt.pth"
 
 annotations_filename = "list_attr_celeba.txt"
 annotations_path = os.path.join(annotations_directory, annotations_filename)
@@ -180,7 +180,7 @@ print()
 print(f"Top-5 accuracy: {top5_acc}")
 
 # Save the results
-txt_file_name = "fine_tuned_hair_attributes.txt"
+txt_file_name = "fine_tuned_all_attributes.txt"
 
 with open(os.path.join(save_dir, txt_file_name), 'w') as file:
      file.write(f"mean_num_diagonal_max_values_im_percent: {mean_num_diagonal_max_values_im_percent}\n")

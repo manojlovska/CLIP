@@ -10,7 +10,7 @@ import clip
 import torch
 
 captions_dir = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions"
-filename = "captions_all_attributes.txt"
+filename = "captions_all_attributes_new.txt"
 captions_filename = os.path.join(captions_dir, filename)
 
 captions = pd.read_csv(captions_filename, sep="\t")
