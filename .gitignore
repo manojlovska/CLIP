@@ -15,4 +15,5 @@ thumbs.db
 wandb/*
 *.txt
 *.json
+EDA/results/
 
