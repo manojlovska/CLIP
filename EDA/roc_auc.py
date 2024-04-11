@@ -1,173 +1,43 @@
 import os
-import torch
-from experiments.base_exp import Exp
-import wandb
-from loguru import logger
-from torchsummary import summary
-from tqdm import tqdm
-import clip
 from statistics import mean
-import torch.nn.functional as F
 import numpy as np
-
-from experiments.base_exp import Exp
-from data.dataset import CelebADataset
-import pandas as pd
-import glob
-from PIL import Image
-from torch.utils.data import DataLoader
-import json
 import matplotlib.pyplot as plt
-import seaborn as sns
+from sklearn.metrics import roc_curve, auc
+from EDA.helper_functions import get_annotation, get_gt, roc
 
 device = "cuda:1"
 
-# Paths
-images_path = "/mnt/hdd/volume1/anastasija/CelebA/Img/img_celeba/"
-eval_partition_path = "/mnt/hdd/volume1/anastasija/CelebA/Eval/"
-annotations_directory = "/mnt/hdd/volume1/anastasija/CelebA/Anno/"
-captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/captions_19_attr_all_images.txt"
-save_dir = "/mnt/hdd/volume1/anastasija/CLIP_outputs/results"
-
-annotations_filename = "list_attr_celeba.txt"
-annotations_path = os.path.join(annotations_directory, annotations_filename)
-
-annotations_df = pd.read_csv(annotations_path, delimiter='\s+', skiprows=[0])
-attributes = list(annotations_df.columns.values)
-
-list_eval_partition = pd.read_csv(os.path.join(eval_partition_path, "list_eval_partition.txt"), sep=" ", header=None)
-img_filenames_all = sorted(glob.glob(images_path + '*.jpg'))
-
-# Model
-model, preprocess = clip.load("ViT-B/32", device=device)
-
-# Validation set
-val_set = CelebADataset(images_path, captions_path, eval_partition_path, preprocess,  name="val")
-val_images = [os.path.join(images_path, image) for image in val_set.images_list]
-
-val_dataloader = DataLoader(val_set, batch_size=64, shuffle=False)
-
-#########################################################################################################################
-# Read the distinct captions
-file_path = '/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/captions_single_attribute.txt'
-
-# attr_captions = []
-
-# with open(file_path, 'r') as file:
-#     for line in file:
-#         attr_captions.append(line.strip())
-
-# # Read the ground truth captions for every image
-# json_file_path = '/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/captions_single_attr_all_imgs.json'
-
-# # Read the JSON file into a Python dictionary
-# with open(json_file_path, 'r') as json_file:
-#     json_captions = json.load(json_file)
-
-
-# with torch.no_grad():
-#     result = {}
-#     pbar = tqdm(val_images, total=len(val_images))
-#     model.eval()
-#     result = np.empty(shape=(len(val_images),40))
-#     idx = 0
-#     for img in pbar:
-#         img_name = os.path.basename(img)
-#         image = preprocess(Image.open(img))
-#         image = image.unsqueeze(0).to(device)
-#         cosine_similarities = []
-#         for attr_caption in attr_captions:
-#             # attr_caption = attr_captions[0] ############################## Comment this
-#             tokenized_caption = clip.tokenize(attr_caption, truncate=True)
-
-#             text = tokenized_caption.to(device)
-
-#             logits_per_image, _ = model(image, text)
-#             cosine_sim = logits_per_image.item() / 100.
-#             cosine_similarities.append(cosine_sim)
-#         result[idx] = cosine_similarities
-#         idx += 1
-#         # print(f'logits_per_image: {logits_per_image}')
-#         # print(f'cosine_sim: {logits_per_image.item() / 100.}')
-# np.save("result", result)
-# import pdb
-# pdb.set_trace
-
-###############################################################################################
-######################### Calculate TPR, FPR, ROC, AUC
-
-# Transform the ground truths in same format
-def get_annotation(fnmtxt, columns=None, verbose=True):
-    if verbose:
-        print("_"*70)
-        print(fnmtxt)
-    
-    rfile = open(fnmtxt, 'r' ) 
-    texts = rfile.readlines()
-    rfile.close()
-    
-    if not columns:
-        columns = np.array(texts[1].split(" "))
-        columns = columns[columns != "\n"]
-        texts = texts[2:]
-    
-    df = []
-    for txt in texts:
-        txt = np.array(txt.rstrip("\n").split(" "))
-        txt = txt[txt != ""]
-    
-        df.append(txt)
-        
-    df = pd.DataFrame(df)
-
-    if df.shape[1] == len(columns) + 1:
-        columns = ["image_id"]+ list(columns)
-    df.columns = columns   
-    df = df.dropna()
-    if verbose:
-        print(" Total number of annotations {}\n".format(df.shape))
-        print(df.head())
-    ## cast to integer
-    for nm in df.columns:
-        if nm != "image_id":
-            df[nm] = pd.to_numeric(df[nm],downcast="integer")
-    return(df)
-
-# Whole dataset
+# Get the annotations
 annotations_path = '/mnt/hdd/volume1/anastasija/CelebA/Anno'
 attr = get_annotation(os.path.join(annotations_path, 'list_attr_celeba.txt'), verbose=False)
 val_attr = attr.iloc[162770:182637]
 
-gt_all = np.empty(shape=(len(val_attr),40))
-for i in range(len(val_attr)):
-    gt_all[i] = list(val_attr.iloc[i][1:])
+# Ground truths
+gt_all = get_gt(annotations_path)
 
-gt_all = np.where(gt_all == -1, 0, gt_all)
-###########################################################################################################
+########################## ROC CURVES AND AUC SCORES
+# BASIC captions and attributes
+predicted_path = "/home/anastasija/Documents/Projects/SBS/CLIP/EDA/results/pretrained_clip_basic.npy"
 
-########################## ROC CURVES AND GTS
-from sklearn.metrics import roc_curve, auc
+# List of attributes
 list_attr = list(val_attr.columns[1:])
 
-result = np.load("results/result.npy")
-# Calculate ROC curves
-roc_curves = []
-auc_scores = []
-for i in range(result.shape[1]):
-    fpr, tpr, _ = roc_curve(gt_all[:, i], result[:, i])
-    roc_auc = auc(fpr, tpr)
-    roc_curves.append((fpr, tpr))
-    auc_scores.append(roc_auc)
+predicted_basic = np.load(predicted_path)
 
+# Only for negatives
+if "negative" in predicted_path:
+    gt_all = np.where(gt_all == 1, 0, 1)
+
+roc_curves_basic, auc_scores_basic = roc(predicted_basic, gt_all)
 
 # Plot the ROC curves
 plt.figure(figsize=(10, 8))
 
 # Filter and plot only the curves with valid (non-NaN) AUC scores
-valid_indices = [i for i, score in enumerate(auc_scores) if not np.isnan(score)]
+valid_indices = [i for i, score in enumerate(auc_scores_basic) if not np.isnan(score)]
 for i in valid_indices:  # Limiting to the first few valid curves for clarity
-    fpr, tpr = roc_curves[i]
-    plt.plot(fpr, tpr, label=f'Column {i}: {list_attr[i]}  (AUC = {auc_scores[i]:.2f})', linewidth=3)
+    fpr, tpr = roc_curves_basic[i]
+    plt.plot(fpr, tpr, label=f'{list_attr[i]}  (AUC = {auc_scores_basic[i]:.2f})', linewidth=3)
 
 plt.xlabel('False positive rate')
 plt.ylabel('True positive rate')
@@ -176,32 +46,17 @@ plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plt.show()
 
 # Average AUC
-mean_auc = mean(auc_scores)
-auc_dict = {list_attr[i]: auc_scores[i] for i in range(len(auc_scores))}
-auc_dict = {k: v for k, v in sorted(auc_dict.items(), key=lambda item: item[1], reverse=True)}
+mean_auc_basic = mean(auc_scores_basic)
 
-# Plot the AUC scores vs. the attributes
+# AUC scores vs. attributes
 plt.figure(figsize=(10, 8))
 
-
-plt.stem(valid_indices, auc_scores)
-plt.xticks(valid_indices, list_attr, color='black', rotation=90, fontweight='bold', fontsize='10')
-
-plt.xlabel('Attribute')
-plt.ylabel('AUC score')
-plt.title('AUC scores')
-plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-plt.show()
-
-# Horizontal bar
-plt.figure(figsize=(10, 8))
-
-plt.barh(valid_indices, auc_scores)
+plt.barh(valid_indices, auc_scores_basic)
 plt.yticks(valid_indices, list_attr, color='black', rotation=0, fontweight='bold', fontsize='10')
 
 plt.xlabel('AUC score')
 plt.ylabel('Attribute')
-plt.title('AUC scores')
+plt.title('AUC scores Basic')
 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plt.show()
 
@@ -209,42 +64,30 @@ plt.show()
 auc_intervals = [(round(x*0.1, 1), round((x+1)*0.1, 1)) for x in range(10)]
 
 # Categorize AUC scores into intervals
-categorized_scores = {interval: [] for interval in auc_intervals}
+categorized_scores_basic = {interval: [] for interval in auc_intervals}
 
-for score in auc_scores:
+for score in auc_scores_basic:
     for interval in auc_intervals:
         if interval[0] <= score < interval[1]:
-            categorized_scores[interval].append(score)
+            categorized_scores_basic[interval].append(score)
             break
-# categorized_scores
 
-categorized_indices = {interval: [] for interval in auc_intervals}
+categorized_attr_basic = {interval: [] for interval in auc_intervals}
 
-for index, score in enumerate(auc_scores):
+for index, score in enumerate(auc_scores_basic):
     for interval in auc_intervals:
         if interval[0] <= score < interval[1]:
-            categorized_indices[interval].append(index)
+            categorized_attr_basic[interval].append(list_attr[index])
             break
-
-# categorized_indices
-
-categorized_attr = {interval: [] for interval in auc_intervals}
-
-for index, score in enumerate(auc_scores):
-    for interval in auc_intervals:
-        if interval[0] <= score < interval[1]:
-            categorized_attr[interval].append(list_attr[index])
-            break
-# categorized_attr
 
 # Prepare data for plotting
-intervals = [f"{interval[0]}-{interval[1]}" for interval in categorized_scores.keys()]
-counts = [len(scores) for scores in categorized_scores.values()]
+intervals = [f"{interval[0]}-{interval[1]}" for interval in categorized_scores_basic.keys()]
+counts = [len(scores) for scores in categorized_scores_basic.values()]
 
 # Create the bar chart
 plt.figure(figsize=(10, 6))
 plt.bar(intervals, counts, color='skyblue')
-plt.title('Distribution of AUC Scores Across Intervals')
+plt.title('Distribution of AUC Scores Across Intervals Basic')
 plt.xlabel('AUC Score Intervals')
 plt.ylabel('Count of AUC Scores')
 plt.xticks(rotation=45)
@@ -254,7 +97,238 @@ plt.grid(axis='y', linestyle='--')
 plt.tight_layout()
 plt.show()
 
-categorized_scores
-print()
-categorized_attr
+categorized_attr_basic
+
+# PARAPHRISED captions and attributes
+predicted_path = "/home/anastasija/Documents/Projects/SBS/CLIP/EDA/results/pretrained_clip_paraphrised.npy"
+
+# List of attributes
+list_attr = list(val_attr.columns[1:])
+
+predicted_paraphrised = np.load(predicted_path)
+
+# Only for negatives
+if "negative" in predicted_path:
+    gt_all = np.where(gt_all == 1, 0, 1)
+
+roc_curves_paraphrised, auc_scores_paraphrised = roc(predicted_paraphrised, gt_all)
+
+# Plot the ROC curves
+plt.figure(figsize=(10, 8))
+
+# Filter and plot only the curves with valid (non-NaN) AUC scores
+valid_indices = [i for i, score in enumerate(auc_scores_paraphrised) if not np.isnan(score)]
+for i in valid_indices:  # Limiting to the first few valid curves for clarity
+    fpr, tpr = roc_curves_paraphrised[i]
+    plt.plot(fpr, tpr, label=f'{list_attr[i]}  (AUC = {auc_scores_paraphrised[i]:.2f})', linewidth=3)
+
+plt.xlabel('False positive rate')
+plt.ylabel('True positive rate')
+plt.title('ROC Curves Paraphrised')
+plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+plt.show()
+
+# Categorize AUC scores into intervals
+categorized_scores_paraphrised = {interval: [] for interval in auc_intervals}
+
+for score in auc_scores_paraphrised:
+    for interval in auc_intervals:
+        if interval[0] <= score < interval[1]:
+            categorized_scores_paraphrised[interval].append(score)
+            break
+
+categorized_attr_paraphrised = {interval: [] for interval in auc_intervals}
+
+for index, score in enumerate(auc_scores_paraphrised):
+    for interval in auc_intervals:
+        if interval[0] <= score < interval[1]:
+            categorized_attr_paraphrised[interval].append(list_attr[index])
+            break
+
+# Prepare data for plotting
+intervals = [f"{interval[0]}-{interval[1]}" for interval in categorized_scores_paraphrised.keys()]
+counts = [len(scores) for scores in categorized_scores_paraphrised.values()]
+
+# Create the bar chart
+plt.figure(figsize=(10, 6))
+plt.bar(intervals, counts, color='skyblue')
+plt.title('Distribution of AUC Scores Across Intervals Paraphrised')
+plt.xlabel('AUC Score Intervals')
+plt.ylabel('Count of AUC Scores')
+plt.xticks(rotation=45)
+plt.grid(axis='y', linestyle='--')
+
+# Show the plot
+plt.tight_layout()
+plt.show()
+
+categorized_attr_paraphrised
+
+# NEGATIVE captions and attributes
+predicted_path = "/home/anastasija/Documents/Projects/SBS/CLIP/EDA/results/pretrained_clip_negative.npy"
+
+# List of attributes
+list_attr = list(val_attr.columns[1:])
+
+predicted_negative = np.load(predicted_path)
+
+# Only for negatives
+if "negative" in predicted_path:
+    print("yes")
+    gt_all = np.where(gt_all == 1, 0, 1)
+
+roc_curves_negative, auc_scores_negative = roc(predicted_paraphrised, gt_all)
+
+# Plot the ROC curves
+plt.figure(figsize=(10, 8))
+
+# Filter and plot only the curves with valid (non-NaN) AUC scores
+valid_indices = [i for i, score in enumerate(auc_scores_negative) if not np.isnan(score)]
+for i in valid_indices:  # Limiting to the first few valid curves for clarity
+    fpr, tpr = roc_curves_negative[i]
+    plt.plot(fpr, tpr, label=f'{list_attr[i]}  (AUC = {auc_scores_negative[i]:.2f})', linewidth=3)
+
+plt.xlabel('False positive rate')
+plt.ylabel('True positive rate')
+plt.title('ROC Curves Negative')
+plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+plt.show()
+
+# Categorize AUC scores into intervals
+categorized_scores_negative = {interval: [] for interval in auc_intervals}
+
+for score in auc_scores_negative:
+    for interval in auc_intervals:
+        if interval[0] <= score < interval[1]:
+            categorized_scores_negative[interval].append(score)
+            break
+
+categorized_attr_negative = {interval: [] for interval in auc_intervals}
+
+for index, score in enumerate(auc_scores_negative):
+    for interval in auc_intervals:
+        if interval[0] <= score < interval[1]:
+            categorized_attr_negative[interval].append(list_attr[index])
+            break
+
+# Prepare data for plotting
+intervals = [f"{interval[0]}-{interval[1]}" for interval in categorized_scores_negative.keys()]
+counts = [len(scores) for scores in categorized_scores_negative.values()]
+
+# Create the bar chart
+plt.figure(figsize=(10, 6))
+plt.bar(intervals, counts, color='skyblue')
+plt.title('Distribution of AUC Scores Across Intervals Negative')
+plt.xlabel('AUC Score Intervals')
+plt.ylabel('Count of AUC Scores')
+plt.xticks(rotation=45)
+plt.grid(axis='y', linestyle='--')
+
+# Show the plot
+plt.tight_layout()
+plt.show()
+
+categorized_attr_negative
+
+# Dictionary of auc scores for every attribute in order basic, paraphrised, negative
+auc_dict_all = {key: [round(auc_scores_basic[i], 3), round(auc_scores_paraphrised[i], 3), round(auc_scores_negative[i], 3)] for i, key in enumerate(list_attr)}
+
+################################## PLOT EVERYTHING TOGETHER
+# ROC
+# Create a subplot of 1x3
+fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+all_auc_scores = [auc_scores_basic, auc_scores_paraphrised, auc_scores_negative]
+all_roc_curves = [roc_curves_basic, roc_curves_paraphrised, roc_curves_negative]
+gt1 = get_gt(annotations_path)
+gt2 = gt1
+gt3 = np.where(gt1 == 1, 0, 1)
+
+gts = [gt1, gt2, gt3]
+
+names = ['Basic', 'Paraphrised', 'Negative']
+
+for i, roc_cur in enumerate(all_roc_curves):
+    for j in valid_indices:  # Limiting to the first few valid curves for clarity
+        fpr, tpr = roc_cur[j]
+        axes[i].plot(fpr, tpr, label=f'{list_attr[j]}  (AUC = {all_auc_scores[i][j]:.2f})', linewidth=3)
+
+    axes[i].set_xlabel('False Positive Rate')
+    axes[i].set_ylabel('True Positive Rate')
+    axes[i].set_title(f'{names[i]}')
+    axes[i].legend(loc="lower center", bbox_to_anchor=(0.5, -2))
+
+# AUC scores
+# Create a figure and a set of subplots
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+# Plot the first bar chart
+axes[0].barh(valid_indices, auc_scores_basic)
+axes[0].set_title('Basic')
+axes[0].set_xlabel('AUC Score')
+axes[0].set_yticks(valid_indices)
+axes[0].set_yticklabels(list_attr, color='black', rotation=0, fontweight='bold', fontsize='10')
+
+# Plot the second bar chart
+axes[1].barh(valid_indices, auc_scores_paraphrised)
+axes[1].set_title('Paraphrised')
+axes[1].set_xlabel('AUC Score')
+axes[1].set_yticks(valid_indices)
+axes[1].set_yticklabels(list_attr, color='black', rotation=0, fontweight='bold', fontsize='10')
+
+# Plot the third bar chart
+axes[2].barh(valid_indices, auc_scores_negative)
+axes[2].set_title('Negative')
+axes[2].set_xlabel('AUC Score')
+axes[2].set_yticks(valid_indices)
+axes[2].set_yticklabels(list_attr, color='black', rotation=0, fontweight='bold', fontsize='10')
+
+# Automatically adjust subplot params for better layout
+plt.tight_layout()
+
+# Show the plot
+plt.show()
+
+# Histograms
+intervals_basic = [f"{interval[0]}-{interval[1]}" for interval in categorized_scores_basic.keys()]
+counts_basic = [len(scores) for scores in categorized_scores_basic.values()]
+
+intervals_paraphrised = [f"{interval[0]}-{interval[1]}" for interval in categorized_scores_paraphrised.keys()]
+counts_paraphrised = [len(scores) for scores in categorized_scores_paraphrised.values()]
+
+intervals_negative = [f"{interval[0]}-{interval[1]}" for interval in categorized_scores_negative.keys()]
+counts_negative = [len(scores) for scores in categorized_scores_negative.values()]
+
+# Create a figure and a set of subplots
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+# plt.barh(valid_indices, auc_scores_basic)
+# plt.yticks(valid_indices, list_attr, color='black', rotation=0, fontweight='bold', fontsize='10')
+
+# Plot the first bar chart
+axes[0].bar(intervals_basic, counts_basic)
+axes[0].set_title('Basic')
+axes[0].set_xlabel('Interval')
+axes[0].set_ylabel('Counts')
+
+# Plot the second bar chart
+axes[1].bar(intervals_paraphrised, counts_paraphrised)
+axes[1].set_title('Paraphrised')
+axes[1].set_xlabel('Interval')
+axes[1].set_ylabel('Counts')
+
+# Plot the third bar chart
+axes[2].bar(intervals_negative, counts_negative)
+axes[2].set_title('Negative')
+axes[2].set_xlabel('Interval')
+axes[2].set_ylabel('Counts')
+
+# Automatically adjust subplot params for better layout
+plt.tight_layout()
+
+# Show the plot
+plt.show()
+
+################# LOAD THE COMBINED ATTRIBUTES (GENDER + ANOTHER ONE)
+combined_res = np.load("results/pretrained_clip_combined.npy") #THINK ABOUT THIS
+
 

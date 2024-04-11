@@ -22,7 +22,7 @@
 
 * Least correlated attributes:
 | Attribute 1            | Attribute 2            | correlation coefficient|
-  | :--------------------- | :--------------------- | :--------------------: |
+  | :--------------------- | :------------------- | :---------------------: |
   | Wearing_Necklace       | Pale_Skin            | 3.754043e-04            |
   | Receding_Hairline      | Black_Hair           | -5.486097e-07           |
   | Rosy_Cheeks            | Narrow_Eyes          | -7.514527e-05           |
@@ -31,7 +31,7 @@
   | Mouth_Slightly_Open    | Bald                 | -4.765488e-04           |
   | Black_Hair             | Arched_Eyebrows      | -9.959764e-04           |
 
-* Most negative correlated attributes:
+* Most negatively correlated attributes:
 | Attribute 1            | Attribute 2            | correlation coefficient|
   | :--------------------- | :--------------------- | :--------------------: |
   | Male              | Blond Hair          | -0.302988               |
@@ -91,3 +91,16 @@ Generated ROC curves for every attribute and calculated AUC scores, visualized s
 1. Paraphrized the captions (CLIP/data/captions/captions_single_attribute_paraphrised.txt) and analysed the results of zero-shot matching
    * Zero-shot matching similarity scores are saved in CLIP/EDA/results/pretrained_clip_paraphrised.npy
 2. Zero-shot matching for only negative examples (CLIP/data/captions/captions_single_attribute_negative.txt)
+3. Zero-shot matching for combined attributes like gender + some other attribute (CLIP/data/captions/captions_combined_attr.txt)
+
+## 28.02.2024 - 13.03.2024
+### Combining attributes (gender + two attributes)
+1. Combining highly correlated attributes to avoid redundancy
+2. Combining negatively correlated attributes to acknowledge the potential contradictions or complexities in the images
+3. Combining attributes that are not highly correlated or negatively correlated to provide a more comprehensive description of the image
+
+## 13.03.2024 - 27.03.2024
+### ROC Curves for CelebA - combined + EDA for VGG Face 2
+
+## 27.03.2024 - 
+### Generating captions for VGGFace2

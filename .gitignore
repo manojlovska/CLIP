@@ -15,5 +15,6 @@ thumbs.db
 wandb/*
 *.txt
 *.json
-EDA/results/
+EDA/results/*
+EDA/VGGFace2/results/*
 

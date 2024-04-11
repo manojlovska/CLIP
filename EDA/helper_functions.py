@@ -19,6 +19,8 @@ from torch.utils.data import DataLoader
 import json
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.metrics import roc_curve, auc
+
 
 # Set the device
 DEVICE = "cuda:1"
@@ -94,6 +96,105 @@ def generate_zero_shot_scores(captions_path, images_path, eval_partition_path, s
 
     np.save(save_filename, result)
 
+def generate_zero_shot_scores2(captions_path, images_path, eval_partition_path, save_filename):
+    # Load validation images
+    image_list = read_eval_partition(eval_partition_path)
+    val_images = [os.path.join(images_path, image) for image in image_list]
+
+    # Load the model
+    model, preprocess = clip.load("ViT-B/32", device=DEVICE)
+
+    attr_captions1 = []
+
+    with open(os.path.join(captions_path,"captions_combined_attr_man.txt"), 'r') as file:
+        for line in file:
+            attr_captions1.append(line.strip())
+    
+    attr_captions2 = []
+
+    with open(os.path.join(captions_path,"captions_combined_attr_woman.txt"), 'r') as file:
+        for line in file:
+            attr_captions2.append(line.strip())
+
+    with torch.no_grad():
+        result = {}
+        pbar = tqdm(val_images, total=len(val_images))
+        model.eval()
+        result = np.empty(shape=(len(val_images), len(attr_captions1), 2))
+        idx = 0
+        for img in pbar:
+            img_name = os.path.basename(img)
+            image = preprocess(Image.open(img))
+            image = image.unsqueeze(0).to(DEVICE)
+            cosine_similarities = []
+            for i in range(len(attr_captions1)):
+                # attr_caption = attr_captions[0] ############################## Comment this
+                attr_caption1 = attr_captions1[i]
+                attr_caption2 = attr_captions2[i]
+                tokenized_caption = clip.tokenize([attr_caption1, attr_caption2], truncate=True)
+
+                text = tokenized_caption.to(DEVICE)
+
+                logits_per_image, _ = model(image, text)
+                cosine_sim = logits_per_image.cpu().numpy() / 100.
+                cosine_similarities.append(cosine_sim.flatten())
+                # logger.info(f'cosine sim: {cosine_sim}')
+                # logger.info(f'cosine similarities: {cosine_similarities}')
+
+            result[idx] = cosine_similarities
+            idx += 1
+
+    np.save(save_filename, result)
+
+def generate_zero_shot_scores_combined_attr(captions_path, images_path, eval_partition_path, save_filename):
+    # Load validation images
+    image_list = read_eval_partition(eval_partition_path)
+    val_images = [os.path.join(images_path, image) for image in image_list]
+
+    # Load the model
+    model, preprocess = clip.load("ViT-B/32", device=DEVICE)
+
+    attr_captions = []
+
+    with open(captions_path,'r') as file:
+        for line in file:
+            attr_captions.append(line.strip())
+
+    tokenized_captions = clip.tokenize(attr_captions, truncate=True)
+    text = tokenized_captions.to(DEVICE)
+
+    save_file = os.path.join(save_filename, captions_path.split('/')[-2], captions_path.split('/')[-1].split('.')[-2])
+    logger.info(f'save_path: {save_file}')
+    dir = os.path.join(*save_file.split('/')[:-1])
+    logger.info(f'makedirs: {dir}')
+    
+    logger.info(f'save_path: {save_file}')
+
+    with torch.no_grad():
+        result = {}
+        pbar = tqdm(val_images, total=len(val_images))
+        model.eval()
+        result = []# np.empty(shape=(len(val_images), len(attr_captions)))
+        idx = 0
+        for img in pbar:
+            img_name = os.path.basename(img)
+            image = preprocess(Image.open(img))
+            image = image.unsqueeze(0).to(DEVICE)
+            cosine_similarities = []
+
+            logits_per_image, _ = model(image, text)
+            cosine_sim = logits_per_image.cpu().numpy() / 100.
+            cosine_similarities.append(cosine_sim.flatten())
+            # logger.info(f'cosine sim: {cosine_sim}')
+            # logger.info(f'cosine similarities: {cosine_similarities}')
+
+            result.append(cosine_similarities)
+            # logger.info(result)
+            idx += 1
+
+    # os.makedirs(os.path.join(*save_file.split('/')[:-1]), exist_ok=True)
+    np.save(save_file, result)
+
 
 def get_annotation(fnmtxt, columns=None, verbose=True):
     if verbose:
@@ -143,4 +244,16 @@ def get_gt(annotations_path, start_idx=162770, end_idx=182637):
     gt_all = np.where(gt_all == -1, 0, gt_all)
 
     return gt_all
+
+# Calculate ROC curves
+def roc(predicted, gt):
+    roc_curves = []
+    auc_scores = []
+    for i in range(predicted.shape[1]):
+        fpr, tpr, _ = roc_curve(gt[:, i], predicted[:, i])
+        roc_auc = auc(fpr, tpr)
+        roc_curves.append((fpr, tpr))
+        auc_scores.append(roc_auc)
+    
+    return roc_curves, auc_scores
 
