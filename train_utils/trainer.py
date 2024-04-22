@@ -9,7 +9,8 @@ import clip
 from statistics import mean
 import torch.nn.functional as F
 import torchvision
-
+from accelerate import Accelerator
+from accelerate import DistributedDataParallelKwargs
 
 class Trainer:
     def __init__(self, exp: Exp):
@@ -18,13 +19,16 @@ class Trainer:
         # training related attr
         self.max_epoch = exp.max_epoch
 
-        self.device = exp.device
+        # self.device = exp.device
         self.save_history_ckpt = exp.save_history_ckpt
 
         # data/dataloader related attr
         self.input_size = exp.input_size
         self.max_mean_num_diagonal_max_values_im_percent = 0
         self.best_val_loss = 1e10
+
+        self.accelerator = Accelerator(kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
+        self.device = self.accelerator.device
 
         # setup_logger(
         #     self.file_name,
@@ -69,6 +73,9 @@ class Trainer:
         self.max_iter = len(self.train_dataloader)
         # self.lr_scheduler = self.exp.get_lr_scheduler()
         self.model = model
+
+        self.model, self.optimizer, self.train_dataloader = self.accelerator.prepare(
+            self.model, self.optimizer, self.train_dataloader)
 
         # Wandb logger
         config = {
@@ -124,8 +131,8 @@ class Trainer:
 
                 image_names, images, captions, texts = batch 
 
-                images = images.to(self.device)
-                texts = texts.to(self.device)
+                # images = images.to(self.device)
+                # texts = texts.to(self.device)
 
                 # Forward pass
                 logits_per_image, logits_per_text = self.model(images, texts)
@@ -143,8 +150,8 @@ class Trainer:
 
 
                 # Convert validation metrics into percentages
-                num_diagonal_max_values_im_percent_train = num_diagonal_max_values_im_train / self.train_dataloader.batch_size
-                num_diagonal_max_values_texts_percent_train = num_diagonal_max_values_texts_train / self.train_dataloader.batch_size
+                num_diagonal_max_values_im_percent_train = num_diagonal_max_values_im_train / self.exp.batch_size
+                num_diagonal_max_values_texts_percent_train = num_diagonal_max_values_texts_train / self.exp.batch_size
 
                 # Add them to a list to calculate mean value
                 list_num_diagonal_max_values_im_percent_train.append(num_diagonal_max_values_im_percent_train.item())
@@ -154,7 +161,8 @@ class Trainer:
                 list_mean_max_probs_texts.append(mean_max_probs_texts.item())
 
                 # Backward pass
-                self.total_loss.backward()
+                # self.total_loss.backward()
+                self.accelerator.backward(self.total_loss)
 
                 if self.device == "cpu":
                     self.optimizer.step()
@@ -185,6 +193,10 @@ class Trainer:
             # Evaluate the model
             if (self.epoch + 1) % 1 == 0:
                 self.num_equal_diagonal_values = self.evaluate_and_save_ckpt(self.model)
+                # Accelerator save the chekcpoint
+                save_checkpoint_accelerate = os.path.join(self.file_name, f"epoch_{self.epoch + 1}")
+                os.makedirs(save_checkpoint_accelerate, exist_ok=True)
+                self.accelerator.save_state(save_checkpoint_accelerate)
 
     def contrastive_loss(self, logits):
         labels = torch.arange(logits.shape[0]).to(self.device)
@@ -271,9 +283,9 @@ class Trainer:
             self.max_mean_num_diagonal_max_values_im_percent = max(self.max_mean_num_diagonal_max_values_im_percent, self.mean_num_diagonal_max_values_im_percent)
 
             # Save best checkpoint
-            self.save_ckpt("last_epoch", update_best_ckpt, epoch_val_loss=self.epoch_val_loss)
-            if self.save_history_ckpt:
-                self.save_ckpt(f"epoch_{self.epoch + 1}", epoch_val_loss=self.epoch_val_loss)
+            # self.save_ckpt("last_epoch", update_best_ckpt, epoch_val_loss=self.epoch_val_loss)
+            # if self.save_history_ckpt:
+            #     self.save_ckpt(f"epoch_{self.epoch + 1}", epoch_val_loss=self.epoch_val_loss)
 
             # Log in logger and wandb
             logger.info(f"Epoch {self.epoch+1}/{self.max_epoch}, number of maximum diagonal values for image logits: {self.mean_num_diagonal_max_values_im_percent}, number of maximum diagonal values for text logits {self.mean_num_diagonal_max_values_texts_percent}")
