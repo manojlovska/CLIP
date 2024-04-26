@@ -35,7 +35,7 @@ class VGGFace2Dataset():
         # Captions for the particular split
         self.captions = self.read_captions_for_images()
 
-        logger.info(f"{len(self.valid_indices)}")
+        # logger.info(f"{len(self.valid_indices)}")
 
     def get_images_list(self):
         with open(os.path.join(self.base_path, f"{self.split}_list.txt"), 'r') as file:
@@ -49,7 +49,7 @@ class VGGFace2Dataset():
         images_set = set(self.images_list[i] for i in self.valid_indices)
 
         with open(self.captions_path, 'r') as file:
-            for i, line in enumerate(tqdm(file, desc="Processing captions")):
+            for i, line in enumerate(file): # tqdm(file, desc="Processing captions")
                 image_name, caption = line.strip().split(' ', 1)
                 if image_name in images_set:
                     # logger.info(f"Image {image_name} is in images_set")
@@ -84,7 +84,7 @@ class VGGFace2Dataset():
         captions_dict = self.read_captions_as_dict()
         image_names = captions_dict.keys()
 
-        for idx, image_name in enumerate(tqdm(self.images_list, desc="Checking for valid indices")):
+        for idx, image_name in enumerate(self.images_list): # tqdm(self.images_list, desc="Checking for valid indices")
             im_path = os.path.join(self.images_path, image_name)
 
             if os.path.exists(im_path) and image_name in image_names:

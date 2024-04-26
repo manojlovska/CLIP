@@ -4,14 +4,15 @@ from experiments.base_exp import Exp
 import wandb
 # from loguru import logger
 from torchsummary import summary
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import clip
 from statistics import mean
 import torch.nn.functional as F
 import torchvision
 import time
 from accelerate import Accelerator
-from accelerate import DistributedDataParallelKwargs
+from accelerate import DistributedDataParallelKwargs, InitProcessGroupKwargs
+from datetime import timedelta
 from accelerate.logging import get_logger
 
 logger = get_logger(__name__)
@@ -33,16 +34,8 @@ class Trainer:
         self.max_mean_num_diagonal_max_values_im_percent = 0
         self.best_val_loss = 1e10
 
-        self.accelerator = Accelerator(log_with="wandb", kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
+        self.accelerator = Accelerator(log_with="wandb", kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True), InitProcessGroupKwargs(timeout=timedelta(seconds=7200))])
         self.device = self.accelerator.device
-
-        # setup_logger(
-        #     self.file_name,
-        #     distributed_rank=self.rank,
-        #     filename="train_log.txt",
-        #     mode="a",
-        # )
-        wandb.init(project=self.exp.project_name)
     
     def train(self):
         self.before_train()
@@ -54,12 +47,17 @@ class Trainer:
             self.after_train()
     
     def before_train(self):
-        logger.info("Exp value:\n{}".format(self.exp))
+        self.accelerator.print("Exp value:\n{}".format(self.exp))
+        # logger.info("Exp value:\n{}".format(self.exp))
+
         # Model related init
-        # torch.cuda.set_device(self.device)
         model, preprocess = self.exp.get_model(self.exp.vision_encoder)
 
-        logger.info(
+        # logger.info(
+        #     "Model Summary: {}".format(model)
+        # )
+
+        self.accelerator.print(
             "Model Summary: {}".format(model)
         )
 
@@ -69,9 +67,11 @@ class Trainer:
         self.optimizer = self.exp.get_optimizer()
 
         # Data related init
+        self.accelerator.print("Loading the training data ...")
         self.train_dataloader = self.exp.get_train_dataloader(
             batch_size=self.exp.batch_size
         )
+        self.accelerator.print("Loading the validation data ...")
         self.val_dataloader = self.exp.get_val_dataloader(
             batch_size=self.exp.batch_size
         )
@@ -94,37 +94,27 @@ class Trainer:
         }
         
         # Accelerator wandb
-        # self.wandb_logger = wandb.init(project=self.exp.project_name,
-        #                                config=config)
+        if self.accelerator.is_local_main_process:
+            wandb.init(project=self.exp.project_name)
+            self.accelerator.init_trackers(self.exp.project_name, config=config, init_kwargs={"wandb": {"name": wandb.run.name}})
 
-        self.accelerator.init_trackers(self.exp.project_name, config=config, init_kwargs={"wandb": {"name": wandb.run.name}})
+            # Metric record
+            self.file_name = os.path.join(self.exp.output_dir, self.exp.project_name, wandb.run.name)
+            os.makedirs(self.file_name, exist_ok=True)
+
+            # logger.info(f"Saving checkpoints into {self.file_name}")
+            self.accelerator.print(f"Saving checkpoints into {self.file_name}")
 
         # Distributed training with accelerator
         self.model, self.optimizer, self.train_dataloader = self.accelerator.prepare(
             self.model, self.optimizer, self.train_dataloader)
 
-        self.val_dataloader = self.accelerator.prepare(self.val_dataloader)
+        # self.val_dataloader = self.accelerator.prepare(self.val_dataloader)
 
-        # Access the tracker to initialize the train and val steps
-        # self.wandb_tracker = self.accelerator.get_tracker("wandb")
+        # logger.info("Training start...")
+        # logger.info("\n{}".format(model))
 
-        # self.wandb_tracker.define_metric("train_step")
-        # self.wandb_tracker.define_metric("train/*", step_metric="train_step")
-
-        # self.wandb_tracker.define_metric("val_step")
-        # self.wandb_tracker.define_metric("val/val_loss", step_metric="val_step")
-
-        # self.wandb_logger.define_metric("metrics_step")
-
-        logger.info("Training start...")
-        logger.info("\n{}".format(model))
-
-        # Metric record
-        self.file_name = os.path.join(self.exp.output_dir, self.exp.project_name, wandb.run.name)
-        os.makedirs(self.file_name, exist_ok=True)
-
-        logger.info(f"Saving checkpoints into {self.file_name}")
-
+        self.accelerator.print("Training start...")
 
 
     def train_in_epochs(self):
@@ -134,7 +124,8 @@ class Trainer:
         self.val_step = 0
         self.train_step = 0
         for self.epoch in range(self.max_epoch):
-            logger.info(f"Start training epoch {self.epoch + 1}")
+            # logger.info(f"Start training epoch {self.epoch + 1}")
+            self.accelerator.print(f"Start training epoch {self.epoch + 1}")
             self.model.train(True)
             train_iter = 0
             pbar = tqdm(self.train_dataloader, total=len(self.train_dataloader), disable=not self.accelerator.is_local_main_process)
@@ -150,14 +141,8 @@ class Trainer:
 
                 image_names, images, captions, texts = batch 
 
-                # images = images.to(self.device)
-                # texts = texts.to(self.device)
-
                 # Forward pass
                 logits_per_image, logits_per_text = self.model(images, texts)
-
-                # Accelerator
-                # logits_per_image, logits_per_text = self.accelerator.gather_for_metrics((logits_per_image, logits_per_text))
                 
                 # Compute loss
                 loss_images = self.contrastive_loss(logits_per_image)
@@ -183,7 +168,6 @@ class Trainer:
                 list_mean_max_probs_texts.append(mean_max_probs_texts.item())
 
                 # Backward pass
-                # self.total_loss.backward()
                 self.accelerator.backward(self.total_loss)
 
                 if self.device == "cpu":
@@ -192,9 +176,6 @@ class Trainer:
                     self.exp.convert_models_to_fp32(self.model)
                     self.optimizer.step()
                     clip.model.convert_weights(self.model)
-                
-                # self.lr_scheduler.step()
-                # self.last_lr_in_epoch = self.lr_scheduler.get_last_lr()[0]
                 
                 self.accelerator.log({"train/loss": self.total_loss, 
                                        "train/learning_rate": self.exp.basic_lr, 
@@ -210,16 +191,18 @@ class Trainer:
 
             # Epoch train loss is mean of all iterations
             self.epoch_loss = self.epoch_loss / len(pbar)
-            logger.info(f"Epoch {self.epoch+1}/{self.max_epoch}, train loss: {self.epoch_loss}")
+            # logger.info(f"Epoch {self.epoch+1}/{self.max_epoch}, train loss: {self.epoch_loss}")
+            self.accelerator.print(f"Epoch {self.epoch+1}/{self.max_epoch}, train loss: {self.epoch_loss}")
 
             # Evaluate the model
             if (self.epoch + 1) % 1 == 0:
-                self.num_equal_diagonal_values = self.evaluate_and_save_ckpt(self.model)
+                if self.accelerator.is_local_main_process:
+                    self.num_equal_diagonal_values = self.evaluate_and_save_ckpt(self.model)
 
-                # Accelerator save the chekcpoint
-                save_checkpoint_accelerate = os.path.join(self.file_name, f"epoch_{self.epoch + 1}")
-                os.makedirs(save_checkpoint_accelerate, exist_ok=True)
-                self.accelerator.save_state(save_checkpoint_accelerate)
+                    # Accelerator save the chekcpoint
+                    save_checkpoint_accelerate = os.path.join(self.file_name, f"epoch_{self.epoch + 1}")
+                    os.makedirs(save_checkpoint_accelerate, exist_ok=True)
+                    self.accelerator.save_state(save_checkpoint_accelerate)
 
     def contrastive_loss(self, logits):
         labels = torch.arange(logits.shape[0]).to(self.device)
@@ -228,9 +211,13 @@ class Trainer:
         return loss.mean()
 
     def after_train(self):
-        logger.info(
+        # logger.info(
+        #     "Fine-tuning of the model is done and the best validation loss is {:.2f}".format(self.best_val_loss)
+        # )
+        self.accelerator.print(
             "Fine-tuning of the model is done and the best validation loss is {:.2f}".format(self.best_val_loss)
         )
+
         # self.wandb_logger.finish()
         self.accelerator.end_training()
     
@@ -251,12 +238,8 @@ class Trainer:
                 iter = iter+1
 
                 val_im_names, val_images, val_captions, val_texts = v_batch
-                # val_images = val_images.to(self.device)
-                # val_texts = val_texts.to(self.device)
 
                 val_logits_per_image, val_logits_per_text = model(val_images, val_texts)
-
-                val_logits_per_image, val_logits_per_text = self.accelerator.gather_for_metrics((val_logits_per_image, val_logits_per_text))
 
                 # Compute validation loss
                 val_loss_images = self.contrastive_loss(val_logits_per_image)
@@ -268,6 +251,9 @@ class Trainer:
                 # Log to wandb
                 self.accelerator.log({"val/val_loss": self.total_val_loss,
                                        "val_step": self.val_step})
+                
+
+                # val_logits_per_image, val_logits_per_text = self.accelerator.gather_for_metrics((val_logits_per_image, val_logits_per_text))
 
                 # Calculate the metrics
                 max_values_indices_im, diagonal_max_values_im, num_diagonal_max_values_im, mean_max_probs_im = self.get_num_diagonal_max_values(val_logits_per_image)
@@ -295,7 +281,8 @@ class Trainer:
 
             # Epoch val loss is mean of all iterations
             self.epoch_val_loss = self.epoch_val_loss / len(v_pbar)
-            logger.info(f"Epoch {self.epoch+1}/{self.max_epoch}, validation loss: {self.epoch_val_loss}")
+            # logger.info(f"Epoch {self.epoch+1}/{self.max_epoch}, validation loss: {self.epoch_val_loss}")
+            self.accelerator.print(f"Epoch {self.epoch+1}/{self.max_epoch}, validation loss: {self.epoch_val_loss}")
 
             # Mean values of all batches in epoch
             self.mean_num_diagonal_max_values_im_percent = mean(val_list_num_diagonal_max_values_im_percent)
@@ -308,13 +295,10 @@ class Trainer:
             self.best_val_loss = min(self.epoch_val_loss, self.best_val_loss)
             self.max_mean_num_diagonal_max_values_im_percent = max(self.max_mean_num_diagonal_max_values_im_percent, self.mean_num_diagonal_max_values_im_percent)
 
-            # Save best checkpoint
-            # self.save_ckpt("last_epoch", update_best_ckpt, epoch_val_loss=self.epoch_val_loss)
-            # if self.save_history_ckpt:
-            #     self.save_ckpt(f"epoch_{self.epoch + 1}", epoch_val_loss=self.epoch_val_loss)
-
             # Log in logger and wandb
-            logger.info(f"Epoch {self.epoch+1}/{self.max_epoch}, number of maximum diagonal values for image logits: {self.mean_num_diagonal_max_values_im_percent}, number of maximum diagonal values for text logits {self.mean_num_diagonal_max_values_texts_percent}")
+            # logger.info(f"Epoch {self.epoch+1}/{self.max_epoch}, number of maximum diagonal values for image logits: {self.mean_num_diagonal_max_values_im_percent}, number of maximum diagonal values for text logits {self.mean_num_diagonal_max_values_texts_percent}")
+            
+            self.accelerator.print(f"Epoch {self.epoch+1}/{self.max_epoch}, number of maximum diagonal values for image logits: {self.mean_num_diagonal_max_values_im_percent}, number of maximum diagonal values for text logits {self.mean_num_diagonal_max_values_texts_percent}")
 
             self.accelerator.log({"val/num_diagonal_max_values_im": self.mean_num_diagonal_max_values_im_percent,
                                     "val/num_diagonal_max_values_texts": self.mean_num_diagonal_max_values_texts_percent,
@@ -353,7 +337,9 @@ class Trainer:
     
     def save_ckpt(self, ckpt_name, update_best_ckpt=False, epoch_val_loss=None):
         save_model = self.model
-        logger.info("Save weights to {}".format(self.file_name))
+        # logger.info("Save weights to {}".format(self.file_name))
+        self.accelerator.print("Save weights to {}".format(self.file_name))
+
         ckpt_state = {
             "start_epoch": self.epoch + 1,
             "model": save_model.state_dict(),

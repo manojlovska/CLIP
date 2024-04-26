@@ -17,4 +17,6 @@ wandb/*
 *.json
 EDA/results/*
 EDA/VGGFace2/results/*
-
+CLIP_outputs/*
+data/captions/*
+wandb/*

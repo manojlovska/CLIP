@@ -133,7 +133,9 @@ for i in tqdm(range(len(labels_dataframe))):
     fixed_caption = fix_caption(caption)
 
     captions[filename] = fixed_caption
-
+######################################################################################################################
+######################################################################################################################
+######################################################################################################################
 # Save the captions
 output_file = '/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/VGGFace2/captions_25_att_29032024.txt'
 

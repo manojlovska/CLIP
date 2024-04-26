@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "/ceph/grid/home/am6417/miniconda3/envs/env_clip/lib/python3.8/runpy.py", line 185, in _run_module_as_main
+    mod_name, mod_spec, code = _get_module_details(mod_name, _Error)
+  File "/ceph/grid/home/am6417/miniconda3/envs/env_clip/lib/python3.8/runpy.py", line 111, in _get_module_details
+    __import__(pkg_name)
+  File "/ceph/grid/home/am6417/Thesis/CLIP/tests/test_repeating_tokens_per_batch.py", line 83, in <module>
+    train_loader = exp.gets_train_dataloader(batch_size=512)
+AttributeError: 'VGGFace2Exp' object has no attribute 'gets_train_dataloader'
+Train Dataloader ...
