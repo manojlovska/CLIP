@@ -63,7 +63,7 @@ def generate_caption(attributes):
         if group == 'Identity':
             if group_caption_parts:
                 if 'Ethnicity' in caption_parts:
-                    caption += " " + (', ').join(group_caption_parts) + ' ' + gender + " of " + caption_parts["Ethnicity"][0]  + " descent" 
+                    caption += " " + (', ').join(group_caption_parts) + ' '+ caption_parts["Ethnicity"][0] + ' ' + gender
                 else:
                     caption += " " + (', ').join(group_caption_parts) + ' ' + gender + ""
             else:
@@ -90,17 +90,17 @@ def generate_caption(attributes):
                 if 'Mustache'.lower() in group_caption_parts:
                     caption += ", with a distinguished mustache"
                 if 'Oval_Face'.lower() in group_caption_parts:
-                    caption += ". " + poss_pronoun + " face features an oval structure"
+                    caption += ". " + pronoun + " has an oval face"
                 if 'High_Cheekbones'.lower() in group_caption_parts:
                     caption += ", prominent cheekbones,"
                 if 'Bushy_Eyebrows'.lower() in group_caption_parts:
                     caption += " and thick, graceful eyebrows."
                 if 'Smiling'.lower() in group_caption_parts:
-                    caption += " " + pronoun + " expresses joy with a radiant smile,"
+                    caption += " " + pronoun + " smiles joyfully,"
                 if 'Big_Nose'.lower() in group_caption_parts:
-                    caption += " complemented by a prominent nose,"
+                    caption += " with a large nose,"
                 if 'Heavy_Makeup'.lower() in group_caption_parts:
-                    caption += " and noticeable makeup."
+                    caption += " and heavy makeup."
                 if 'No_Beard'.lower() in group_caption_parts:
                     caption += ". " + pronoun + " is clean-shaven,"
                 if '5_o_Clock_Shadow'.lower() in group_caption_parts:
@@ -108,37 +108,36 @@ def generate_caption(attributes):
                 if 'Receding_Hairline'.lower() in group_caption_parts:
                     caption += " with a receding hairline."
                 if 'Arched_Eyebrows'.lower() in group_caption_parts:
-                    caption += " with nicely arched eyebrows."
+                    caption += " with arched eyebrows."
                 if 'Chubby'.lower() in group_caption_parts:
                     caption += " with a chubby face."
                 if 'Fully_Visible_Forehead'.lower() in group_caption_parts:
-                    caption += " with a fully visible forehead."
+                    caption += " with a visible forehead."
             elif group == 'Accessories':
                 if 'Wearing_Earrings'.lower() in group_caption_parts:
                     caption += " " + pronoun + " is wearing elegant earrings"
                 if 'Wearing_Necktie'.lower() in group_caption_parts:
-                    caption += " and formal attire,"
+                    caption += " and formal attire."
                 if 'Wearing_Hat'.lower() in group_caption_parts:
-                    caption += " wearing a stylish hat,"
+                    caption += " wearing a stylish hat."
                 if 'Wearing_Lipstick'.lower() in group_caption_parts:
-                    caption += " with a touch of lipstick,"
+                    caption += " with lipstick."
                 if 'No_Eyewear'.lower() in group_caption_parts:
-                    caption += " without any eyewear,"
+                    caption += " without any eyewear."
                 if 'Eyeglasses'.lower() in group_caption_parts:
-                    caption += " wearing eyeglasses,"
-            elif group == 'Attractiveness':
-                caption += " giving off a charming vibe."
+                    caption += " wearing eyeglasses."
+            # elif group == 'Attractiveness':
+            #     caption += " and a charming aura."
     return caption + "."
+
 
 # Example usage:
 path = '/mnt/hdd/volume1/MAAD-Face/MAAD_Face.csv'
 labels_dataframe = pd.read_csv(path)
-import pdb
-pdb.set_trace()
 
 print(f"Generating the captions ...")
 captions = {}
-for i in tqdm(range(len(labels_dataframe))):
+for i in tqdm(range(len(labels_dataframe))): # len(labels_dataframe)
     labels = labels_dataframe.loc[i].drop(["Filename"])
     filename = labels_dataframe.loc[i]["Filename"]
 
@@ -147,12 +146,18 @@ for i in tqdm(range(len(labels_dataframe))):
     caption = generate_caption(data)
     fixed_caption = fix_caption(caption)
 
+    tokenized_caption = clip.tokenize(fixed_caption, truncate=False)
+
+    if tokenized_caption.shape[1] > 77:
+        import pdb
+        pdb.set_trace()
+
     captions[filename] = fixed_caption
 ######################################################################################################################
 ######################################################################################################################
 ######################################################################################################################
 # Save the captions
-output_file = '/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/VGGFace2/captions_att_30042024.txt'
+output_file = '/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/VGGFace2/captions_att_07052024.txt'
 
 # Open the file in write mode and save the data
 print(f"Writing the captions to: {output_file}")
@@ -160,4 +165,6 @@ with open(output_file, 'w') as file:
     for image_name, caption in tqdm(captions.items()):
         file.write(f'{image_name} {caption}\n')
 
+import pdb
+pdb.set_trace()
 

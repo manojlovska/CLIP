@@ -11,13 +11,13 @@ import torch
  
 
 captions_dir = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/VGGFace2"
-filename = "captions_25_att_29032024.txt"
+filename = "captions_att_07052024.txt"
 captions_filename = os.path.join(captions_dir, filename)
 
 # pd_captions = pd.read_csv(captions_filename, sep="\t")
 # captions = pd_captions["caption"].to_list()
 
-captions = pd.read_csv(captions_filename, sep="\t")
+captions = pd.read_csv(captions_filename, sep="\t", names=["image_name caption"], header=None)
 captions[['image_name','caption']] = captions["image_name caption"].str.split(" ", n=1, expand=True)
 captions.drop(columns=captions.columns[0], axis=1,  inplace=True)
 captions = captions["caption"].values.tolist()
@@ -36,20 +36,39 @@ unique_values = set(captions)
 num_unique_values = len(unique_values)
 print(f"Number of unique values: {num_unique_values}")
 
-tokenized_captions = clip.tokenize(captions, truncate=True)
-
-non_zero_values = torch.count_nonzero(tokenized_captions, dim=-1).numpy().tolist()
-
 count = 0
-for i, value in tqdm(enumerate(non_zero_values)):
-    if value > tokenized_captions.shape[-1] - 1:
+for i, caption in tqdm(enumerate(captions)):
+    tokenized_caption = clip.tokenize(caption, truncate=True)
+    
+    if tokenized_caption[:,-1].item() != 0:
         count += 1
-        print(f"Value: {value} \nToken: {tokenized_captions[i]}")
+        # print("NOT OK")
+        # print(f"\nTokenized caption: \n {tokenized_caption}")
+        # print(f"Caption: \n {captions[i]}")
+    
+    # else:
+    #     # print(f"OK \n {captions[i]}")
 
 print(count)
 
 import pdb
 pdb.set_trace()
+
+
+# tokenized_captions = clip.tokenize(captions, truncate=False)
+
+# non_zero_values = torch.count_nonzero(tokenized_captions, dim=-1).numpy().tolist()
+
+# count = 0
+# for i, value in tqdm(enumerate(non_zero_values)):
+#     if value > tokenized_captions.shape[-1] - 1:
+#         count += 1
+#         print(f"Value: {value} \nToken: {tokenized_captions[i]}")
+
+# print(count)
+
+# import pdb
+# pdb.set_trace()
 
 # # VAL SET
 # # Extracting the values and converting them to a set to remove duplicates
