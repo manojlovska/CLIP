@@ -8,7 +8,7 @@ class VGGFace2Exp(Exp):
         super().__init__()
 
         # --------------  training config --------------------- #
-        self.batch_size = 512
+        self.batch_size = 64
         self.max_epoch = 100
         self.weight_decay = 0
         self.vision_encoder = "ViT-B/32"
@@ -35,7 +35,7 @@ class VGGFace2Exp(Exp):
         # --------------- dataset path config ----------------- #
         self.output_dir = "./CLIP_outputs"
         self.vgg2_path = "/ceph/grid/home/am6417/Thesis/Datasets/VGGFace2"
-        self.captions_path = "./data/captions/VGGFace2/captions_25_att_29032024.txt"
+        self.captions_path = "./data/captions/VGGFace2/captions_att_07052024.txt"
 
     def get_train_dataset(self):
         from data.vgg2_dataset import VGGFace2Dataset

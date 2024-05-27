@@ -104,7 +104,7 @@ class VGGFace2Dataset():
         image = self.load_image(image_path)
         caption = self.captions[self.images_list[idx]]
 
-        tokenized_caption = clip.tokenize(caption, truncate=True)
+        tokenized_caption = clip.tokenize(caption, context_length=100, truncate=False)
 
         return self.images_list[idx], image, caption, tokenized_caption.squeeze()
     
