@@ -11,41 +11,44 @@ import torch
  
 
 captions_dir = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/VGGFace2"
-filename = "captions_att_07052024.txt"
+filename = "captions_att_28052024.txt"
 captions_filename = os.path.join(captions_dir, filename)
 
-# pd_captions = pd.read_csv(captions_filename, sep="\t")
-# captions = pd_captions["caption"].to_list()
+def read_captions_as_dict(captions_filename):
+    image_dict = {}
+    with open(captions_filename, 'r') as file:
+        for line in file:
+            image_name, caption = line.strip().split(' ', 1)
+            image_dict[image_name] = caption
+    return image_dict
 
-captions = pd.read_csv(captions_filename, sep="\t", names=["image_name caption"], header=None)
-captions[['image_name','caption']] = captions["image_name caption"].str.split(" ", n=1, expand=True)
-captions.drop(columns=captions.columns[0], axis=1,  inplace=True)
-captions = captions["caption"].values.tolist()
+captions = read_captions_as_dict(captions_filename)
 
-print(f"len(captions): {len(captions)}")
+unique_captions = set(captions)
 
-# train_captions = captions[:162770]
-# val_captions = captions[162771:182638]
-
-# TRAIN SET
-# Extracting the values and converting them to a set to remove duplicates
-unique_values = set(captions)
-# print(f"Unique_values:\n{unique_values}")
+import pdb
+pdb.set_trace()
 
 # Counting the number of unique values
-num_unique_values = len(unique_values)
-print(f"Number of unique values: {num_unique_values}")
+num_unique_values_val = len(unique_captions)
+print(f"Number of unique values: {num_unique_values_val}")
 
 count = 0
-for i, caption in tqdm(enumerate(captions)):
-    tokenized_caption = clip.tokenize(caption, truncate=True)
+max_tokens_len = 0
+for i, (image, caption) in tqdm(enumerate(captions.items())):
+    tokenized_caption = clip.tokenize(caption, context_length=305, truncate=False)
     
     if tokenized_caption[:,-1].item() != 0:
         count += 1
-        # print("NOT OK")
-        # print(f"\nTokenized caption: \n {tokenized_caption}")
-        # print(f"Caption: \n {captions[i]}")
-    
+        print("NOT OK")
+        print(f"\nTokenized caption: \n {tokenized_caption}")
+        print(f"Caption: \n {caption}")
+
+    if torch.count_nonzero(tokenized_caption, dim=-1).numpy()[0] > max_tokens_len:
+        max_tokens_len = torch.count_nonzero(tokenized_caption, dim=-1).numpy()[0]
+        max_tokenized_caption = tokenized_caption
+        max_caption = caption
+
     # else:
     #     # print(f"OK \n {captions[i]}")
 
@@ -54,41 +57,3 @@ print(count)
 import pdb
 pdb.set_trace()
 
-
-# tokenized_captions = clip.tokenize(captions, truncate=False)
-
-# non_zero_values = torch.count_nonzero(tokenized_captions, dim=-1).numpy().tolist()
-
-# count = 0
-# for i, value in tqdm(enumerate(non_zero_values)):
-#     if value > tokenized_captions.shape[-1] - 1:
-#         count += 1
-#         print(f"Value: {value} \nToken: {tokenized_captions[i]}")
-
-# print(count)
-
-# import pdb
-# pdb.set_trace()
-
-# # VAL SET
-# # Extracting the values and converting them to a set to remove duplicates
-# unique_values_val = set(val_captions)
-# # print(f"Unique_values:\n{unique_values}")
-
-# # Counting the number of unique values
-# num_unique_values_val = len(unique_values_val)
-# print(f"Number of unique values for val images: {num_unique_values_val}")
-
-# tokenized_captions_val = clip.tokenize(val_captions, truncate=True)
-
-# non_zero_values_val = torch.count_nonzero(tokenized_captions_val, dim=-1).numpy().tolist()
-
-# count_val = 0
-# for i, value in enumerate(non_zero_values_val):
-#     if value > tokenized_captions_val.shape[-1] - 1:
-#         count_val += 1
-#         print(f"Value: {value} \nToken: {tokenized_captions_val[i]}")
-
-
-
-# import pdb; pdb.set_trace()

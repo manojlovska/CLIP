@@ -23,9 +23,9 @@ class VGGFace2Exp(Exp):
         self.test_size = (224, 224)
         self.eval_interval = 1
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
-        self.device = torch.device('cuda')
+        self.device = torch.device('cuda:0')
         self.save_history_ckpt = True
-        self.project_name = "CLIP-fine-tuning-VGGFace2"
+        self.project_name = "CLIP-fine-tuning-VGGFace2-new-context-length"
         # torch.backends.cudnn.enabled = False
 
         self.model = self.get_model(self.vision_encoder)
@@ -34,8 +34,29 @@ class VGGFace2Exp(Exp):
 
         # --------------- dataset path config ----------------- #
         self.output_dir = "./CLIP_outputs"
-        self.vgg2_path = "/ceph/grid/home/am6417/Thesis/Datasets/VGGFace2"
-        self.captions_path = "./data/captions/VGGFace2/captions_att_07052024.txt"
+        self.vgg2_path = "/mnt/hdd/volume1/VGGFace2"
+        self.captions_path = "./data/captions/VGGFace2/captions_att_28052024.txt"
+
+    def get_model(self, vision_encoder):
+        """ Get the model for the specified vision encoder and convert it to float or fp32 for faster training """
+        from clip import clip_extended
+        model, preprocess = clip_extended.load(vision_encoder, device=self.device, jit=False)
+        self.model = model
+        self.preprocess = preprocess
+
+        return self.model, self.preprocess
+    
+    # Convert the model
+    def convert_models_to_fp32(self, model):
+        if self.device == "cpu":
+            "Convert the model parameters to float"
+            model.float()
+        else:
+            "Convert the model parameters to fp32"
+            for p in model.parameters():
+                if p.grad is not None:
+                    p.data = p.data.float() 
+                    p.grad.data = p.grad.data.float() 
 
     def get_train_dataset(self):
         from data.vgg2_dataset import VGGFace2Dataset
@@ -67,3 +88,10 @@ class VGGFace2Exp(Exp):
         test_dataset = self.get_val_dataset()
         self.val_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
         return self.val_dataloader
+    
+    def get_trainer(self):
+        from train_utils.trainer_for_testing import Trainer
+
+        trainer = Trainer(self)
+
+        return trainer

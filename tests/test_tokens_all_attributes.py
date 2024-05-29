@@ -9,24 +9,31 @@ import re
 import clip
 import torch
 
-captions_dir = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions"
-filename = "captions_all_attributes_new.txt"
+captions_dir = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/VGGFace2"
+filename = "captions_att_28052024.txt"
 captions_filename = os.path.join(captions_dir, filename)
 
-captions = pd.read_csv(captions_filename, sep="\t")
-captions[['image_name','caption']] = captions["image_name caption"].str.split(" ", n=1, expand=True)
-captions.drop(columns=captions.columns[0], axis=1,  inplace=True)
-captions = captions["caption"].values.tolist()
+def read_captions_as_dict(captions_filename):
+    image_dict = {}
+    with open(captions_filename, 'r') as file:
+        for line in file:
+            image_name, caption = line.strip().split(' ', 1)
+            image_dict[image_name] = caption
+    return image_dict
 
+captions = read_captions_as_dict(captions_filename)
 
 unique_captions = set(captions)
+
+import pdb
+pdb.set_trace()
 
 
 # Counting the number of unique values
 num_unique_values_val = len(unique_captions)
-print(f"Number of unique values for val images: {num_unique_values_val}")
+print(f"Number of unique values: {num_unique_values_val}")
 
-tokenized_captions_val = clip.tokenize(captions, truncate=True)
+tokenized_captions_val = clip.tokenize(captions, context_length=305, truncate=True)
 
 non_zero_values_val = torch.count_nonzero(tokenized_captions_val, dim=-1).numpy().tolist()
 
