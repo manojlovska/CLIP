@@ -195,7 +195,7 @@ class Trainer:
             self.accelerator.print(f"Epoch {self.epoch+1}/{self.max_epoch}, train loss: {self.epoch_loss}")
 
             # Evaluate the model
-            if (self.epoch + 1) % 1 == 0:
+            if (self.epoch + 1) % 5 == 0:
                 if self.accelerator.is_local_main_process:
                     self.num_equal_diagonal_values = self.evaluate_and_save_ckpt(self.model)
 

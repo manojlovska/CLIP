@@ -25,7 +25,7 @@ class VGGFace2Exp(Exp):
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
         self.device = torch.device('cuda:0')
         self.save_history_ckpt = True
-        self.project_name = "CLIP-fine-tuning-VGGFace2-new-context-length"
+        self.project_name = "CLIP-fine-tuning-VGGFace2"
         # torch.backends.cudnn.enabled = False
 
         self.model = self.get_model(self.vision_encoder)
@@ -34,7 +34,7 @@ class VGGFace2Exp(Exp):
 
         # --------------- dataset path config ----------------- #
         self.output_dir = "./CLIP_outputs"
-        self.vgg2_path = "/mnt/hdd/volume1/VGGFace2"
+        self.vgg2_path = "/ceph/grid/home/am6417/Thesis/Datasets/VGGFace2"
         self.captions_path = "./data/captions/VGGFace2/captions_att_28052024.txt"
 
     def get_model(self, vision_encoder):
@@ -90,7 +90,7 @@ class VGGFace2Exp(Exp):
         return self.val_dataloader
     
     def get_trainer(self):
-        from train_utils.trainer_for_testing import Trainer
+        from train_utils.trainer_accelerate import Trainer
 
         trainer = Trainer(self)
 
