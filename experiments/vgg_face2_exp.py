@@ -23,7 +23,7 @@ class VGGFace2Exp(Exp):
         self.test_size = (224, 224)
         self.eval_interval = 1
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
-        self.device = torch.device('cuda:0')
+        self.device = torch.device('cpu')
         self.save_history_ckpt = True
         self.project_name = "CLIP-fine-tuning-VGGFace2"
         # torch.backends.cudnn.enabled = False
@@ -39,8 +39,9 @@ class VGGFace2Exp(Exp):
 
     def get_model(self, vision_encoder):
         """ Get the model for the specified vision encoder and convert it to float or fp32 for faster training """
-        from clip import clip_extended
-        model, preprocess = clip_extended.load(vision_encoder, device=self.device, jit=False)
+        # from clip import clip_extended
+        import clip
+        model, preprocess = clip.load(vision_encoder, device=self.device, jit=False)
         self.model = model
         self.preprocess = preprocess
 

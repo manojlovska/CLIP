@@ -6,7 +6,76 @@ import re
 from safetensors.torch import load
 from clip.model import build_model
 
-DEVICE = "cuda:0"
+DEVICE = "cpu"
+
+
+def load_model(state_dict, jit: bool = False):
+    """ Modified clip.load function """
+    if not jit:
+        model = build_model(state_dict).to(DEVICE)
+        if str(DEVICE) == "cpu":
+            model.float()
+        return model
+
+    # patch the device names
+    device_holder = torch.jit.trace(lambda: torch.ones([]).to(torch.device(DEVICE)), example_inputs=[])
+    device_node = [n for n in device_holder.graph.findAllNodes("prim::Constant") if "Device" in repr(n)][-1]
+
+    def _node_get(node: torch._C.Node, key: str):
+        """Gets attributes of a node which is polymorphic over return type.
+        
+        From https://github.com/pytorch/pytorch/pull/82628
+        """
+        sel = node.kindOf(key)
+        return getattr(node, sel)(key)
+
+    def patch_device(module):
+        try:
+            graphs = [module.graph] if hasattr(module, "graph") else []
+        except RuntimeError:
+            graphs = []
+
+        if hasattr(module, "forward1"):
+            graphs.append(module.forward1.graph)
+
+        for graph in graphs:
+            for node in graph.findAllNodes("prim::Constant"):
+                if "value" in node.attributeNames() and str(_node_get(node, "value")).startswith("cuda"):
+                    node.copyAttributes(device_node)
+
+    model.apply(patch_device)
+    patch_device(model.encode_image)
+    patch_device(model.encode_text)
+
+    # patch dtype to float32 on CPU
+    if str(DEVICE) == "cpu":
+        float_holder = torch.jit.trace(lambda: torch.ones([]).float(), example_inputs=[])
+        float_input = list(float_holder.graph.findNode("aten::to").inputs())[1]
+        float_node = float_input.node()
+
+        def patch_float(module):
+            try:
+                graphs = [module.graph] if hasattr(module, "graph") else []
+            except RuntimeError:
+                graphs = []
+
+            if hasattr(module, "forward1"):
+                graphs.append(module.forward1.graph)
+
+            for graph in graphs:
+                for node in graph.findAllNodes("aten::to"):
+                    inputs = list(node.inputs())
+                    for i in [1, 2]:  # dtype can be the second or third argument to aten::to()
+                        if _node_get(inputs[i].node(), "value") == 5:
+                            inputs[i].node().copyAttributes(float_node)
+
+        model.apply(patch_float)
+        patch_float(model.encode_image)
+        patch_float(model.encode_text)
+
+        model.float()
+
+    return model
 
 def swap_first_two_elements(lst):
     """
@@ -105,7 +174,7 @@ def main():
     with open(model_checkpoint, "rb") as f:
         data = f.read()
     loaded_state = load(data)
-    model = build_model(loaded_state).to(DEVICE)
+    model = load_model(loaded_state).to(DEVICE) # build_model(loaded_state).to(DEVICE)
 
     # Construct the dataset
     exp = VGGFace2Exp()
