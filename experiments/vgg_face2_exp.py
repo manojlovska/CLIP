@@ -34,8 +34,8 @@ class VGGFace2Exp(Exp):
 
         # --------------- dataset path config ----------------- #
         self.output_dir = "./CLIP_outputs"
-        self.vgg2_path = "/ceph/grid/home/am6417/Thesis/Datasets/VGGFace2"
-        self.captions_path = "./data/captions/VGGFace2/captions_att_28052024.txt"
+        self.vgg2_path = "/mnt/hdd/volume1/VGGFace2"
+        self.captions_path = "./data/captions/VGGFace2/captions_att_07052024.txt"
 
     def get_model(self, vision_encoder):
         """ Get the model for the specified vision encoder and convert it to float or fp32 for faster training """

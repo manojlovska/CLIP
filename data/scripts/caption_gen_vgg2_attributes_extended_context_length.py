@@ -11,14 +11,57 @@ def convert_to_dictionary(data):
             data_dict[key] = int(value)
     return data_dict
 
-def fix_caption(caption):
-    # Remove comma if followed by space and full stop
-    # Add a full stop after any comma followed by a space and a full stop
-    # Remove duplicate full stops
+# def fix_caption(caption):
+#     # Remove comma if followed by space and full stop
+#     # Add a full stop after any comma followed by a space and a full stop
+#     # Remove duplicate full stops
 
+#     caption = re.sub(r',(?=\s*[A-Z])', '.', caption)
+#     caption = re.sub(r',\.', '.', caption)
+#     caption = re.sub(r'\.{2,}', '.', caption)
+#     return caption
+
+def remove_periods_followed_by_comma(text):
+    # Use a regular expression to find periods followed by an optional space and then a comma
+    pattern = re.compile(r'\.\s*,')
+    
+    # Replace the matched pattern with just a comma
+    result = pattern.sub(',', text)
+    
+    return result
+
+def fix_caption(caption):
+    # Remove comma if followed by space and a capital letter
     caption = re.sub(r',(?=\s*[A-Z])', '.', caption)
+    # Add a full stop after any comma followed by a space and a full stop
     caption = re.sub(r',\.', '.', caption)
+    # Remove duplicate full stops
     caption = re.sub(r'\.{2,}', '.', caption)
+
+    # Remove comma if it comes after "She" or "He"
+    caption = re.sub(r'\b(She|He),', r'\1', caption)
+
+    # Use a regular expression to find periods followed by a lowercase letter, with or without a space
+    pattern = re.compile(r'\.([a-z])|\. ([a-z])')
+    
+    # Define a function to replace the matched pattern
+    def replace(match):
+        # If there's a space, replace with just the lowercase letter
+        if match.group(2):
+            return ' ' + match.group(2)
+        # If there's no space, replace with just the lowercase letter
+        return ' ' + match.group(1)
+    
+    # Substitute the matches with the replacement
+    caption = pattern.sub(replace, caption)
+
+    # Remove periods followed by a comma
+    caption = remove_periods_followed_by_comma(caption)
+
+    # Add full stop in the end if there is none
+    if not caption.endswith("."):
+        caption = caption + "."
+
     return caption
 
 def generate_caption(attributes):
@@ -162,8 +205,8 @@ labels_dataframe = pd.read_csv(path)
 print(f"Generating the captions ...")
 captions = {}
 for i in tqdm(range(len(labels_dataframe))): # len(labels_dataframe)
-    labels = labels_dataframe.loc[i].drop(["Filename"])
     filename = labels_dataframe.loc[i]["Filename"]
+    labels = labels_dataframe.loc[i].drop(["Filename"])
 
     data = labels.to_dict()
 
@@ -172,7 +215,8 @@ for i in tqdm(range(len(labels_dataframe))): # len(labels_dataframe)
 
     tokenized_caption = clip.tokenize(fixed_caption, context_length=305, truncate=False)
 
-    if tokenized_caption.shape[1] > 305:
+    if tokenized_caption[0][-1].numpy().item() > 0:
+        print("Context length exceeded!")
         import pdb
         pdb.set_trace()
 
@@ -185,7 +229,7 @@ import pdb
 pdb.set_trace()
 
 # Save the captions
-output_file = '/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/VGGFace2/captions_att_28052024.txt'
+output_file = '/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/VGGFace2/captions_att_fixed_28052024.txt'
 
 # Open the file in write mode and save the data
 print(f"Writing the captions to: {output_file}")
