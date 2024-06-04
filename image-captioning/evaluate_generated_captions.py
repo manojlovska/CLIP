@@ -15,8 +15,8 @@ def read_captions_as_dict(captions_path):
     return image_dict
 
 gt_captions_path = "./data/captions/VGGFace2/captions_att_07052024.txt"
-# generated_captions_path = "./data/captions/VGGFace2/generated-captions/generated_captions_07052024_77.txt"
-generated_captions_path = "./data/captions/VGGFace2/captions_25_att_29032024.txt"
+generated_captions_path = "./data/captions/VGGFace2/generated-captions/generated_captions_07052024_77.txt"
+# generated_captions_path = "./data/captions/VGGFace2/captions_25_att_29032024.txt"
 
 attributes_list = ['man', 'woman', 
                 'young', 'middle_aged', 'senior', 
