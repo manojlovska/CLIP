@@ -21,7 +21,7 @@ class Exp:
         self.test_size = (224, 224)
         self.eval_interval = 1
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
-        self.device = torch.device('cuda')
+        self.device = torch.device('cpu')
         self.save_history_ckpt = True
         self.project_name = "CLIP-fine-tuning-latest"
         # torch.backends.cudnn.enabled = False
@@ -36,14 +36,14 @@ class Exp:
         self.captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/captions_all_attributes_new.txt"
         self.eval_partitions_path = "/mnt/hdd/volume1/anastasija/CelebA/Eval/"
     
-    def get_model(self, vision_encoder):
-        """ Get the model for the specified vision encoder and convert it to float or fp32 for faster training """
-        import clip
-        model, preprocess = clip.load(vision_encoder, device=self.device, jit=False)
-        self.model = model
-        self.preprocess = preprocess
+    # def get_model(self, vision_encoder):
+    #     """ Get the model for the specified vision encoder and convert it to float or fp32 for faster training """
+    #     import clip
+    #     model, preprocess = clip.load(vision_encoder, device=self.device, jit=False)
+    #     self.model = model
+    #     self.preprocess = preprocess
 
-        return self.model, self.preprocess
+    #     return self.model, self.preprocess
     
     # Convert the model
     def convert_models_to_fp32(self, model):

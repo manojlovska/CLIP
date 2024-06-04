@@ -23,7 +23,7 @@ class VGGFace2Exp(Exp):
         self.test_size = (224, 224)
         self.eval_interval = 1
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
-        self.device = torch.device('cpu')
+        self.device = "cpu"
         self.save_history_ckpt = True
         self.project_name = "CLIP-fine-tuning-VGGFace2"
         # torch.backends.cudnn.enabled = False
@@ -34,7 +34,7 @@ class VGGFace2Exp(Exp):
 
         # --------------- dataset path config ----------------- #
         self.output_dir = "./CLIP_outputs"
-        self.vgg2_path = "/mnt/hdd/volume1/VGGFace2"
+        self.vgg2_path = "/ceph/grid/home/am6417/Thesis/Datasets/VGGFace2"
         self.captions_path = "./data/captions/VGGFace2/captions_att_07052024.txt"
 
     def get_model(self, vision_encoder):
