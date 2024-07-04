@@ -1,30 +1,90 @@
 import os
 import torch
-from experiments.base_exp import Exp
-import wandb
 from loguru import logger
-from torchsummary import summary
 from tqdm import tqdm
 import clip
-from statistics import mean
 import torch.nn.functional as F
 import numpy as np
-
-from experiments.base_exp import Exp
-from data.dataset import CelebADataset
 import pandas as pd
-import glob
 from PIL import Image
-from torch.utils.data import DataLoader
-import json
-import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.metrics import roc_curve, auc
-
+from tqdm import tqdm
+from torch.utils.data import DataLoader
+from safetensors.torch import load as load_safetensors
+# from clip.model import build_model
+from clip.model_extended import build_model
+from torch import nn
 
 # Set the device
 DEVICE = "cuda:1"
 
+def load_model(state_dict, jit: bool = False):
+    """ Modified clip.load function """
+    if not jit:
+        model = build_model(state_dict).to(DEVICE)
+        if str(DEVICE) == "cpu":
+            model.float()
+        return model
+
+    # patch the device names
+    device_holder = torch.jit.trace(lambda: torch.ones([]).to(torch.device(DEVICE)), example_inputs=[])
+    device_node = [n for n in device_holder.graph.findAllNodes("prim::Constant") if "Device" in repr(n)][-1]
+
+    def _node_get(node: torch._C.Node, key: str):
+        """Gets attributes of a node which is polymorphic over return type.
+        
+        From https://github.com/pytorch/pytorch/pull/82628
+        """
+        sel = node.kindOf(key)
+        return getattr(node, sel)(key)
+
+    def patch_device(module):
+        try:
+            graphs = [module.graph] if hasattr(module, "graph") else []
+        except RuntimeError:
+            graphs = []
+
+        if hasattr(module, "forward1"):
+            graphs.append(module.forward1.graph)
+
+        for graph in graphs:
+            for node in graph.findAllNodes("prim::Constant"):
+                if "value" in node.attributeNames() and str(_node_get(node, "value")).startswith("cuda"):
+                    node.copyAttributes(device_node)
+
+    model.apply(patch_device)
+    patch_device(model.encode_image)
+    patch_device(model.encode_text)
+
+    # patch dtype to float32 on CPU
+    if str(DEVICE) == "cpu":
+        float_holder = torch.jit.trace(lambda: torch.ones([]).float(), example_inputs=[])
+        float_input = list(float_holder.graph.findNode("aten::to").inputs())[1]
+        float_node = float_input.node()
+
+        def patch_float(module):
+            try:
+                graphs = [module.graph] if hasattr(module, "graph") else []
+            except RuntimeError:
+                graphs = []
+
+            if hasattr(module, "forward1"):
+                graphs.append(module.forward1.graph)
+
+            for graph in graphs:
+                for node in graph.findAllNodes("aten::to"):
+                    inputs = list(node.inputs())
+                    for i in [1, 2]:  # dtype can be the second or third argument to aten::to()
+                        if _node_get(inputs[i].node(), "value") == 5:
+                            inputs[i].node().copyAttributes(float_node)
+
+        model.apply(patch_float)
+        patch_float(model.encode_image)
+        patch_float(model.encode_text)
+
+        model.float()
+
+    return model
 
 def map_split2int(split):
     """ Map the split of the data to an integer for reaading from annotatons file 
@@ -95,6 +155,111 @@ def generate_zero_shot_scores(captions_path, images_path, eval_partition_path, s
             idx += 1
 
     np.save(save_filename, result)
+
+def generate_zero_shot_scores_VGGFace2(captions_path, save_filename):
+    # Load validation images
+    # from experiments.vgg_face2_exp import VGGFace2Exp
+    from data.vgg2_dataset import VGGFace2Dataset
+    from clip.clip import load
+
+    image_captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/VGGFace2/captions_att_07052024.txt"
+    vgg2_path = "/mnt/hdd/volume1/VGGFace2"
+
+    # Load the model
+    model, preprocess = load("ViT-B/32",device=DEVICE,jit=False)
+    model = model.to(DEVICE)
+
+    # Val set
+    val_set = VGGFace2Dataset(vgg2_path=vgg2_path, captions_path=image_captions_path, preprocess=preprocess, split="test")
+    val_dataloader = DataLoader(val_set, batch_size=64, shuffle=False)
+
+    attr_captions = []
+
+    with open(captions_path, 'r') as file:
+        for line in file:
+            attr_captions.append(line.strip())
+    
+    tokenized_captions = clip.tokenize(attr_captions)
+    texts = tokenized_captions.to(DEVICE)
+
+    with torch.no_grad():
+        # result = {}
+        pbar = tqdm(val_dataloader, total=len(val_dataloader))
+        model.eval()
+        result = np.empty(shape=(len(val_set),47))
+        idx = 0
+        for batch in pbar:
+            image_names, images, _, _ = batch
+            images = images.to(DEVICE)
+
+            logits_per_image, _ = model(images, texts)
+            cosine_similarities = logits_per_image / 100.
+
+            result[idx*64:(idx+1)*64] = cosine_similarities.cpu().numpy()
+            idx += 1
+
+    import pdb
+    pdb.set_trace()
+    np.save(save_filename, result)
+
+    import pdb
+    pdb.set_trace()
+
+def generate_fine_tuned_scores_VGGFace2(captions_path, image_captions_path, model_checkpoint, save_filename):
+    # Load validation images
+    # from experiments.vgg_face2_exp import VGGFace2Exp
+    from data.vgg2_dataset import VGGFace2Dataset
+    from clip.clip import load
+
+    # image_captions_path = "/home/anastasija/Documents/Projects/SBS/CLIP/data/captions/VGGFace2/captions_att_07052024.txt"
+    vgg2_path = "/mnt/hdd/volume1/VGGFace2"
+
+    # Load the model
+    _, preprocess = load("ViT-B/32",device=DEVICE,jit=False)
+
+    # Build the model
+    # model_checkpoint = "CLIP_outputs/CLIP-fine-tuning-VGGFace2/fluent-moon-10/epoch_87/model.safetensors"
+    with open(model_checkpoint, "rb") as f:
+        data = f.read()
+    loaded_state = load_safetensors(data)
+    model = load_model(loaded_state).to(DEVICE) # build_model(loaded_state).to(DEVICE)
+
+    # Val set
+    val_set = VGGFace2Dataset(vgg2_path=vgg2_path, captions_path=image_captions_path, preprocess=preprocess, split="test")
+    val_dataloader = DataLoader(val_set, batch_size=64, shuffle=False)
+
+    attr_captions = []
+
+    with open(captions_path, 'r') as file:
+        for line in file:
+            attr_captions.append(line.strip())
+    
+    tokenized_captions = clip.tokenize(attr_captions, context_length=305)
+    texts = tokenized_captions.to(DEVICE)
+
+    with torch.no_grad():
+        # result = {}
+        pbar = tqdm(val_dataloader, total=len(val_dataloader))
+        model.eval()
+        result = np.empty(shape=(len(val_set),47))
+        idx = 0
+        for batch in pbar:
+            image_names, images, _, _ = batch
+            images = images.to(DEVICE)
+
+            logits_per_image, _ = model(images, texts)
+            cosine_similarities = logits_per_image / 100.
+
+            result[idx*64:(idx+1)*64] = cosine_similarities.cpu().numpy()
+            idx += 1
+
+    import pdb
+    pdb.set_trace()
+    
+    np.save(save_filename, result)
+
+    import pdb
+    pdb.set_trace()
 
 def generate_zero_shot_scores2(captions_path, images_path, eval_partition_path, save_filename):
     # Load validation images

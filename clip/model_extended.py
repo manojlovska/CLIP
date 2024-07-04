@@ -289,7 +289,9 @@ class CLIP(nn.Module):
 
         self.vocab_size = vocab_size
         self.token_embedding = nn.Embedding(vocab_size, transformer_width)
-        self.positional_embedding = nn.Parameter(torch.empty(77, transformer_width))
+        self.positional_embedding = nn.Parameter(torch.empty(305, transformer_width)) ######################################################################### Change back to 77 or add a flag for checking if finetuning or validation
+        self.positional_embedding_res = nn.Parameter(torch.empty(305, transformer_width)) ################### Also here
+
         self.ln_final = LayerNorm(transformer_width)
 
         self.text_projection = nn.Parameter(torch.empty(transformer_width, embed_dim))

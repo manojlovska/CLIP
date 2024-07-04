@@ -40,8 +40,9 @@ class VGGFace2Exp(Exp):
     def get_model(self, vision_encoder):
         """ Get the model for the specified vision encoder and convert it to float or fp32 for faster training """
         # from clip import clip_extended
-        import clip
-        model, preprocess = clip.load(vision_encoder, device=self.device, jit=False)
+        # import clip
+        from clip.clip import load
+        model, preprocess = load(vision_encoder, device=self.device, jit=False)
         self.model = model
         self.preprocess = preprocess
 
